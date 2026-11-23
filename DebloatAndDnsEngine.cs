@@ -143,6 +143,27 @@ namespace WinForge
             string wow64 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), @"SysWOW64\OneDriveSetup.exe");
             if (File.Exists(wow64)) return wow64;
             if (File.Exists(sys32)) return sys32;
+
+            // Modern Windows 11 23H2/24H2 versioned OneDriveSetup locations
+            string[] bases = new string[]
+            {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft OneDrive"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft OneDrive"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Microsoft\OneDrive")
+            };
+            foreach (string b in bases)
+            {
+                if (string.IsNullOrEmpty(b) || !Directory.Exists(b)) continue;
+                try
+                {
+                    foreach (string sub in Directory.GetDirectories(b))
+                    {
+                        string cand = Path.Combine(sub, "OneDriveSetup.exe");
+                        if (File.Exists(cand)) return cand;
+                    }
+                }
+                catch { }
+            }
             return "";
         }
 

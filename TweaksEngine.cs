@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 namespace WinForge
@@ -691,7 +692,7 @@ namespace WinForge
                 "切换为 Windows 高性能电源方案（还原时切回默认「平衡」方案）。",
                 "powercfg /setactive High Performance",
                 delegate { return IsHighPerformancePowerActive(); },
-                delegate { return RunPowerCfg("/setactive " + HighPerfGuid); },
+                delegate { return EnableHighPerformancePower(); },
                 delegate { return RunPowerCfg("/setactive " + BalancedGuid); }
             ));
 
@@ -934,6 +935,17 @@ namespace WinForge
             return res;
         }
 
+        private static readonly Regex PowerGuidRegex = new Regex(
+            @"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+            RegexOptions.Compiled);
+
+        internal static string ExtractPowerGuidFromLine(string line)
+        {
+            if (string.IsNullOrEmpty(line)) return "";
+            Match m = PowerGuidRegex.Match(line);
+            return m.Success ? m.Value.ToLowerInvariant() : "";
+        }
+
         private static bool IsHighPerformancePowerActive()
         {
             try
@@ -941,13 +953,30 @@ namespace WinForge
                 StringBuilder outBuf = new StringBuilder();
                 int rc = WinNative.RunProcessStreaming("powercfg.exe", "/getactivescheme", delegate(string line) { outBuf.AppendLine(line); }, null);
                 if (rc != 0) return false;
-                string txt = outBuf.ToString().ToLowerInvariant();
-                return txt.Contains(HighPerfGuid);
+                string activeGuid = ExtractPowerGuidFromLine(outBuf.ToString());
+                if (string.IsNullOrEmpty(activeGuid)) return false;
+                if (string.Equals(activeGuid, HighPerfGuid, StringComparison.OrdinalIgnoreCase)) return true;
+                string saved = RegHelper.ReadString(Registry.LocalMachine, WinForgeMarkerKey, "HighPerfGuid", "");
+                return !string.IsNullOrEmpty(saved) && string.Equals(activeGuid, saved, StringComparison.OrdinalIgnoreCase);
             }
             catch
             {
                 return false;
             }
+        }
+
+        private static bool EnableHighPerformancePower()
+        {
+            if (RunPowerCfg("/setactive " + HighPerfGuid)) return true;
+            string saved = RegHelper.ReadString(Registry.LocalMachine, WinForgeMarkerKey, "HighPerfGuid", "");
+            if (!string.IsNullOrEmpty(saved) && RunPowerCfg("/setactive " + saved)) return true;
+            string dupGuid = DuplicatePowerSchemeAndGetGuid(HighPerfGuid);
+            if (!string.IsNullOrEmpty(dupGuid))
+            {
+                RegHelper.WriteString(Registry.LocalMachine, WinForgeMarkerKey, "HighPerfGuid", dupGuid);
+                return RunPowerCfg("/setactive " + dupGuid);
+            }
+            return false;
         }
 
         private static bool RunPowerCfg(string args)
@@ -962,6 +991,36 @@ namespace WinForge
             }
         }
 
+        private static string DuplicatePowerSchemeAndGetGuid(string templateGuid)
+        {
+            try
+            {
+                StringBuilder sb = new StringBuilder();
+                if (WinNative.RunProcessStreaming("powercfg.exe", "-duplicatescheme " + templateGuid, delegate(string line) { sb.AppendLine(line); }, null) == 0)
+                {
+                    return ExtractPowerGuidFromLine(sb.ToString());
+                }
+            }
+            catch { }
+            return "";
+        }
+
+        internal static string FindUltimatePerformanceGuidFromList(string powerCfgListOutput)
+        {
+            if (string.IsNullOrEmpty(powerCfgListOutput)) return "";
+            foreach (string raw in powerCfgListOutput.Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (raw.IndexOf("Ultimate Performance", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    raw.IndexOf("Nihai Performans", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    raw.IndexOf("卓越性能", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    string guid = ExtractPowerGuidFromLine(raw);
+                    if (!string.IsNullOrEmpty(guid)) return guid;
+                }
+            }
+            return "";
+        }
+
         private static string FindUltimatePerformanceGuid()
         {
             try
@@ -969,21 +1028,13 @@ namespace WinForge
                 StringBuilder sb = new StringBuilder();
                 if (WinNative.RunProcessStreaming("powercfg.exe", "/list", delegate(string line) { sb.AppendLine(line); }, null) != 0)
                     return "";
-                foreach (string raw in sb.ToString().Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
-                {
-                    if (raw.IndexOf("Ultimate Performance", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        raw.IndexOf("Nihai Performans", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        raw.IndexOf("卓越性能", StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        int col = raw.IndexOf(':');
-                        if (col > 0)
-                        {
-                            string rest = raw.Substring(col + 1).Trim();
-                            int sp = rest.IndexOf(' ');
-                            if (sp >= 32) return rest.Substring(0, sp).Trim();
-                        }
-                    }
-                }
+                string listOut = sb.ToString();
+                string byName = FindUltimatePerformanceGuidFromList(listOut);
+                if (!string.IsNullOrEmpty(byName)) return byName;
+
+                string saved = RegHelper.ReadString(Registry.LocalMachine, WinForgeMarkerKey, "UltimatePerfGuid", "");
+                if (!string.IsNullOrEmpty(saved) && listOut.IndexOf(saved, StringComparison.OrdinalIgnoreCase) >= 0)
+                    return saved;
             }
             catch { }
             return "";
@@ -997,10 +1048,15 @@ namespace WinForge
                 if (WinNative.RunProcessStreaming("powercfg.exe", "/getactivescheme", delegate(string line) { sb.AppendLine(line); }, null) != 0)
                     return false;
                 string txt = sb.ToString();
-                return txt.IndexOf("Ultimate Performance", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                       txt.IndexOf("Nihai Performans", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                       txt.IndexOf("卓越性能", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                       txt.IndexOf(UltPerfTemplateGuid, StringComparison.OrdinalIgnoreCase) >= 0;
+                if (txt.IndexOf("Ultimate Performance", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    txt.IndexOf("Nihai Performans", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    txt.IndexOf("卓越性能", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    txt.IndexOf(UltPerfTemplateGuid, StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+                string activeGuid = ExtractPowerGuidFromLine(txt);
+                string saved = RegHelper.ReadString(Registry.LocalMachine, WinForgeMarkerKey, "UltimatePerfGuid", "");
+                return !string.IsNullOrEmpty(activeGuid) && !string.IsNullOrEmpty(saved) &&
+                       string.Equals(activeGuid, saved, StringComparison.OrdinalIgnoreCase);
             }
             catch { return false; }
         }
@@ -1010,10 +1066,12 @@ namespace WinForge
             string guid = FindUltimatePerformanceGuid();
             if (string.IsNullOrEmpty(guid))
             {
-                RunPowerCfg("-duplicatescheme " + UltPerfTemplateGuid);
-                guid = FindUltimatePerformanceGuid();
+                guid = DuplicatePowerSchemeAndGetGuid(UltPerfTemplateGuid);
+                if (string.IsNullOrEmpty(guid)) guid = FindUltimatePerformanceGuid();
             }
             if (string.IsNullOrEmpty(guid)) guid = UltPerfTemplateGuid;
+            if (!string.Equals(guid, UltPerfTemplateGuid, StringComparison.OrdinalIgnoreCase))
+                RegHelper.WriteString(Registry.LocalMachine, WinForgeMarkerKey, "UltimatePerfGuid", guid);
             return RunPowerCfg("/setactive " + guid);
         }
 
@@ -1095,7 +1153,7 @@ namespace WinForge
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("{");
-            sb.AppendLine("  \"winforge_version\": \"2.0.1\",");
+            sb.AppendLine("  \"winforge_version\": \"2.0.2\",");
             sb.AppendLine("  \"exported_at\": \"" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\",");
 
             sb.Append("  \"apps\": [");
