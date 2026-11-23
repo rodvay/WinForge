@@ -10,8 +10,8 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("WinForge — Complete Reversible Windows Utility")]
 [assembly: AssemblyDescription("Lightweight (~210 KB), zero-dependency, 100% reversible Windows 10/11 utility: 60 verified WinGet apps, 40 live tweaks (Desktop/Laptop presets + JSON config), Bloatware/OneDrive debloater, Windows Update & 1-click DNS, Optional Features & Repairs, and Optional Advanced tab (EN/TR/zh-CN).")]
 [assembly: AssemblyProduct("WinForge")]
-[assembly: AssemblyVersion("2.0.3.0")]
-[assembly: AssemblyFileVersion("2.0.3.0")]
+[assembly: AssemblyVersion("2.0.4.0")]
+[assembly: AssemblyFileVersion("2.0.4.0")]
 
 namespace WinForge
 {
@@ -400,7 +400,7 @@ namespace WinForge
                 // Section header
                 if (y + Sf(24f) >= 0 && y <= ClientSize.Height)
                 {
-                    DrawText(g, WingetEngine.GetGroupName(grp, _lang).ToUpperInvariant(), _fSection, ColCyan,
+                    DrawText(g, WingetEngine.GetGroupName(grp, _lang).ToUpper(Loc.Culture(_lang)), _fSection, ColCyan,
                         new RectangleF(Sf(2f), y + Sf(4f), availW, Sf(20f)), StringAlignment.Near);
                 }
                 y += Sf(28f);
@@ -2304,7 +2304,15 @@ namespace WinForge
                         AppendLog("[Config] Exported JSON profile -> " + dlg.FileName);
                         Invalidate();
                     }
-                    catch (Exception ex) { AppendLog("[Config] Export error: " + ex.Message); }
+                    catch (Exception ex)
+                    {
+                        AppendLog("[Config] Export error: " + ex.Message);
+                        _statusText = T("Could not export profile — check file permissions or Console.",
+                            "Profil dışa aktarılamadı — klasör izinlerini veya Konsolu kontrol edin.",
+                            "导出配置失败 — 请检查目标目录权限或查看日志。");
+                        _statusIsSuccess = false;
+                        Invalidate();
+                    }
                 }
             }
         }
@@ -2332,8 +2340,24 @@ namespace WinForge
                             AppendLog("[Config] Imported JSON profile (" + aCnt + " apps, " + tCnt + " tweaks).");
                             _content.Invalidate(); Invalidate();
                         }
+                        else
+                        {
+                            _statusText = T("Selected JSON file contained no matching WinForge apps or tweaks.",
+                                "Seçilen JSON dosyasında geçerli WinForge uygulaması veya ayarı bulunamadı.",
+                                "所选 JSON 文件未包含有效的 WinForge 软件或优化项。");
+                            _statusIsSuccess = false;
+                            Invalidate();
+                        }
                     }
-                    catch (Exception ex) { AppendLog("[Config] Import error: " + ex.Message); }
+                    catch (Exception ex)
+                    {
+                        AppendLog("[Config] Import error: " + ex.Message);
+                        _statusText = T("Could not read JSON profile — check Console for details.",
+                            "JSON profili okunamadı — ayrıntılar için Konsola bakın.",
+                            "读取配置文件失败 — 请打开日志查看详情。");
+                        _statusIsSuccess = false;
+                        Invalidate();
+                    }
                 }
             }
         }
