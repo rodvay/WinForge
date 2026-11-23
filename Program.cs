@@ -8,10 +8,10 @@ using System.Threading;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("WinForge — Safe Windows Setup, Tweaks & Utility")]
-[assembly: AssemblyDescription("Lightweight, zero-dependency, 100% reversible Windows 10/11 utility for WinGet apps, privacy/UI tweaks, Windows Update policies, and official system repairs (EN/TR/zh-CN).")]
+[assembly: AssemblyDescription("Lightweight, zero-dependency, 100% reversible Windows 10/11 utility for WinGet apps, privacy/UI tweaks, Windows Update policies, system repairs, and optional expert tools (EN/TR/zh-CN).")]
 [assembly: AssemblyProduct("WinForge")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
 
 namespace WinForge
 {
@@ -37,7 +37,7 @@ namespace WinForge
                 else if (a == "--tab" && i + 1 < args.Length)
                 {
                     int t;
-                    if (int.TryParse(args[++i], out t) && t >= 0 && t <= 3) cfg.InitialTab = t;
+                    if (int.TryParse(args[++i], out t) && t >= 0 && t <= 4) cfg.InitialTab = t;
                 }
             }
             return cfg;
@@ -76,6 +76,10 @@ namespace WinForge
         public static readonly Color ColAmber = Color.FromArgb(251, 191, 36);
         public static readonly Color ColAmberBg = Color.FromArgb(48, 38, 18);
         public static readonly Color ColAmberBd = Color.FromArgb(150, 102, 22);
+        public static readonly Color ColDanger = Color.FromArgb(248, 113, 113);
+        public static readonly Color ColDangerBg = Color.FromArgb(52, 22, 26);
+        public static readonly Color ColDangerHover = Color.FromArgb(74, 28, 34);
+        public static readonly Color ColDangerBd = Color.FromArgb(165, 52, 60);
         public static readonly Color ColBtnBg = Color.FromArgb(30, 37, 48);
         public static readonly Color ColBtnHover = Color.FromArgb(44, 54, 68);
         public static readonly Color ColBtnBd = Color.FromArgb(58, 70, 88);
@@ -107,6 +111,8 @@ namespace WinForge
         public UpdatePolicyState UpdateState = new UpdatePolicyState();
         public List<RepairActionItem> Repairs = new List<RepairActionItem>();
         public List<ControlPanelShortcut> Shortcuts = new List<ControlPanelShortcut>();
+        public AdvancedStatus AdvStatus = new AdvancedStatus();
+        public RegistryScanResult RegScan = new RegistryScanResult();
         public bool WingetOk = true;
         public string WingetVersion = "";
 
@@ -322,7 +328,8 @@ namespace WinForge
             if (_activeTab == 0) _contentHeight = PaintAppsTab(g, availW);
             else if (_activeTab == 1) _contentHeight = PaintTweaksTab(g, availW);
             else if (_activeTab == 2) _contentHeight = PaintUpdatesTab(g, availW);
-            else _contentHeight = PaintRepairTab(g, availW);
+            else if (_activeTab == 3) _contentHeight = PaintRepairTab(g, availW);
+            else _contentHeight = PaintAdvancedTab(g, availW);
 
             if (_scrollY > MaxScroll()) _scrollY = MaxScroll();
 
@@ -714,6 +721,234 @@ namespace WinForge
             return (int)Math.Ceiling(y + _scrollY + Sf(10f));
         }
 
+        // ==================== TAB 4: ADVANCED (OPTIONAL EXPERT TOOLS) ====================
+        private int PaintAdvancedTab(Graphics g, float availW)
+        {
+            float y = -_scrollY;
+
+            // Optional expert warning banner
+            RectangleF banner = new RectangleF(0, y, availW, Sf(36f));
+            DrawBox(g, banner, Sf(8f), ColAmberBg, ColAmberBd);
+            string banTxt = !_isAdmin
+                ? T("Optional Expert Tools — Click 'Admin ↗' for Defender/Edge/Store controls. Safe HKCU Registry Cleanup works without Admin.",
+                    "İsteğe Bağlı Uzman Araçları — Defender/Edge/Store için 'Yönetici ↗' tıklayın. Güvenli HKCU Kayıt Defteri Temizliği yönetici gerektirmez.",
+                    "可选高级工具 — 管理 Defender / Edge / 应用商店需点击右上角「管理员 ↗」；安全注册表清理无需管理员权限。")
+                : T("Optional Expert Tools — Excluded from Recommended Preset. Every action asks confirmation & offers 1-click Restore or .reg backup.",
+                    "İsteğe Bağlı Uzman Araçları — Önerilen ayarlara dahil değildir. Her işlem onay ister ve tek tıkla geri yükleme / .reg yedeği sunar.",
+                    "可选高级工具 — 不会随一键推荐自动开启；每项操作均需二次确认，并提供一键恢复或 .reg 自动备份。");
+            DrawText(g, banTxt, _fSub, ColAmber, new RectangleF(banner.X + Sf(14f), banner.Y, banner.Width - Sf(28f), banner.Height), StringAlignment.Near);
+            y += Sf(44f);
+
+            float cardH = Sf(94f);
+
+            // --- CARD 1: WINDOWS DEFENDER POLICY ---
+            RectangleF c1 = new RectangleF(0, y, availW, cardH);
+            if (c1.Bottom >= -4 && c1.Top <= ClientSize.Height + 4)
+            {
+                DrawBox(g, c1, Sf(10f), ColCard, ColBorder);
+                float tx = c1.X + Sf(16f);
+                float maxX = c1.Right - Sf(16f);
+                string t1 = T("Windows Defender Real-Time Protection", "Windows Defender Gerçek Zamanlı Koruma", "Windows Defender 实时保护策略");
+                float w1 = Math.Min(MeasureTight(g, t1, _fTitle).Width + Sf(4f), Sf(360f));
+                DrawTextTight(g, t1, _fTitle, ColTextPrimary, new RectangleF(tx, c1.Y + Sf(9f), w1, Sf(19f)));
+                float nx = DrawTag(g, tx + w1 + Sf(8f), c1.Y + Sf(10f), T("EXPERT", "UZMAN", "高级"), ColAmberBg, ColAmberBd, ColAmber, maxX);
+                nx = DrawTag(g, nx, c1.Y + Sf(10f), T("ADMIN", "YÖNETİCİ", "需管理员"), ColAmberBg, ColAmberBd, ColAmber, maxX);
+
+                if (AdvStatus.DefenderRealTimeEnabled)
+                {
+                    nx = DrawTag(g, nx, c1.Y + Sf(10f), T("ACTIVE", "AKTİF", "运行中"), ColSafeBg, ColSafeBd, ColSafe, maxX);
+                    if (AdvStatus.DefenderTamperProtected)
+                        DrawTag(g, nx, c1.Y + Sf(10f), T("TAMPER PROTECTION ON", "KURCALAMA KORUMASI AÇIK", "篡改保护已开启"), ColCyanBg, ColCyanBd, ColCyan, maxX);
+                }
+                else
+                {
+                    DrawTag(g, nx, c1.Y + Sf(10f), T("POLICY DISABLED", "DEVRE DIŞI", "策略已禁用"), ColDangerBg, ColDangerBd, ColDanger, maxX);
+                }
+
+                string d1 = T(
+                    "Applies official Group Policy & MpPreference. Never bypasses Tamper Protection — turn it off in Windows Security first if active.",
+                    "Resmi Grup İlkesi ve MpPreference kullanır. Kurcalama Koruması açıksa önce Windows Güvenliği'nden kapatmanız gerekir.",
+                    "使用微软官方组策略与 MpPreference 控制；绝不绕过防篡改机制，若篡改保护开启请先在 Windows 安全中心手动关闭。");
+                DrawText(g, d1, _fSub, ColTextSecondary, new RectangleF(tx, c1.Y + Sf(32f), c1.Width - Sf(32f), Sf(17f)), StringAlignment.Near);
+
+                float by = c1.Bottom - Sf(36f);
+                float bx = tx;
+                RectangleF bDefDis = new RectangleF(bx, by, Sf(188f), Sf(26f));
+                DrawDangerPillBtn(g, bDefDis, T("Disable Defender Policy", "Defender'ı Devre Dışı Bırak", "禁用 Defender 策略"), IsHovered("adv_def_disable", null), !_isBusy && _isAdmin);
+                if (!_isBusy && _isAdmin) AddZone(bDefDis, "adv_def_disable", null);
+                bx = bDefDis.Right + Sf(8f);
+
+                RectangleF bDefRes = new RectangleF(bx, by, Sf(152f), Sf(26f));
+                DrawPillBtn(g, bDefRes, T("Restore Defender", "Defender'ı Geri Aç", "恢复 Defender 保护"), IsHovered("adv_def_restore", null), !AdvStatus.DefenderRealTimeEnabled, !_isBusy && _isAdmin);
+                if (!_isBusy && _isAdmin) AddZone(bDefRes, "adv_def_restore", null);
+                bx = bDefRes.Right + Sf(8f);
+
+                RectangleF bDefSec = new RectangleF(bx, by, Sf(166f), Sf(26f));
+                DrawPillBtn(g, bDefSec, T("Windows Security ↗", "Windows Güvenliği ↗", "打开安全中心 ↗"), IsHovered("adv_def_security", null), false, true);
+                AddZone(bDefSec, "adv_def_security", null);
+            }
+            y += cardH + Sf(8f);
+
+            // --- CARD 2: MICROSOFT EDGE ---
+            RectangleF c2 = new RectangleF(0, y, availW, cardH);
+            if (c2.Bottom >= -4 && c2.Top <= ClientSize.Height + 4)
+            {
+                DrawBox(g, c2, Sf(10f), ColCard, ColBorder);
+                float tx = c2.X + Sf(16f);
+                float maxX = c2.Right - Sf(16f);
+                string t2 = T("Microsoft Edge Browser", "Microsoft Edge Tarayıcısı", "Microsoft Edge 浏览器");
+                float w2 = Math.Min(MeasureTight(g, t2, _fTitle).Width + Sf(4f), Sf(280f));
+                DrawTextTight(g, t2, _fTitle, ColTextPrimary, new RectangleF(tx, c2.Y + Sf(9f), w2, Sf(19f)));
+                float nx = DrawTag(g, tx + w2 + Sf(8f), c2.Y + Sf(10f), T("EXPERT", "UZMAN", "高级"), ColAmberBg, ColAmberBd, ColAmber, maxX);
+                nx = DrawTag(g, nx, c2.Y + Sf(10f), T("ADMIN", "YÖNETİCİ", "需管理员"), ColAmberBg, ColAmberBd, ColAmber, maxX);
+
+                if (AdvStatus.EdgeInstalled)
+                {
+                    string verTxt = !string.IsNullOrEmpty(AdvStatus.EdgeVersion) ? (" " + AdvStatus.EdgeVersion) : "";
+                    DrawTag(g, nx, c2.Y + Sf(10f), T("INSTALLED", "KURULU", "已安装") + verTxt, ColCyanBg, ColCyanBd, ColCyan, maxX);
+                }
+                else
+                {
+                    DrawTag(g, nx, c2.Y + Sf(10f), T("REMOVED", "KALDIRILDI", "已卸载"), ColSafeBg, ColSafeBd, ColSafe, maxX);
+                }
+
+                string d2 = T(
+                    "Uses Edge's official setup.exe / WinGet to remove or reinstall Microsoft Edge. Leaves Edge WebView2 Runtime 100% intact.",
+                    "Edge'i resmi setup.exe / WinGet ile kaldırır veya yeniden kurar. Windows uygulamaları için Edge WebView2'ye kesinlikle dokunmaz.",
+                    "调用微软官方安装程序 / WinGet 卸载或重装 Edge 浏览器，完整保留 Edge WebView2 运行时，不影响其他应用。");
+                DrawText(g, d2, _fSub, ColTextSecondary, new RectangleF(tx, c2.Y + Sf(32f), c2.Width - Sf(32f), Sf(17f)), StringAlignment.Near);
+
+                float by = c2.Bottom - Sf(36f);
+                float bx = tx;
+                bool canRemEdge = !_isBusy && _isAdmin && AdvStatus.EdgeInstalled;
+                RectangleF bEdgeRem = new RectangleF(bx, by, Sf(156f), Sf(26f));
+                DrawDangerPillBtn(g, bEdgeRem, T("Remove Edge", "Edge'i Kaldır", "卸载 Edge 浏览器"), IsHovered("adv_edge_remove", null), canRemEdge);
+                if (canRemEdge) AddZone(bEdgeRem, "adv_edge_remove", null);
+                bx = bEdgeRem.Right + Sf(8f);
+
+                bool canInstEdge = !_isBusy && WingetOk;
+                RectangleF bEdgeInst = new RectangleF(bx, by, Sf(186f), Sf(26f));
+                DrawPillBtn(g, bEdgeInst, T("Reinstall Edge (WinGet)", "Edge'i Yeniden Kur", "重装 Edge (WinGet)"), IsHovered("adv_edge_reinstall", null), !AdvStatus.EdgeInstalled, canInstEdge);
+                if (canInstEdge) AddZone(bEdgeInst, "adv_edge_reinstall", null);
+            }
+            y += cardH + Sf(8f);
+
+            // --- CARD 3: MICROSOFT STORE ---
+            RectangleF c3 = new RectangleF(0, y, availW, cardH);
+            if (c3.Bottom >= -4 && c3.Top <= ClientSize.Height + 4)
+            {
+                DrawBox(g, c3, Sf(10f), ColCard, ColBorder);
+                float tx = c3.X + Sf(16f);
+                float maxX = c3.Right - Sf(16f);
+                string t3 = T("Microsoft Store", "Microsoft Store (Mağaza)", "Microsoft Store 应用商店");
+                float w3 = Math.Min(MeasureTight(g, t3, _fTitle).Width + Sf(4f), Sf(280f));
+                DrawTextTight(g, t3, _fTitle, ColTextPrimary, new RectangleF(tx, c3.Y + Sf(9f), w3, Sf(19f)));
+                float nx = DrawTag(g, tx + w3 + Sf(8f), c3.Y + Sf(10f), T("EXPERT", "UZMAN", "高级"), ColAmberBg, ColAmberBd, ColAmber, maxX);
+                nx = DrawTag(g, nx, c3.Y + Sf(10f), T("ADMIN", "YÖNETİCİ", "需管理员"), ColAmberBg, ColAmberBd, ColAmber, maxX);
+
+                if (AdvStatus.StoreInstalled)
+                    DrawTag(g, nx, c3.Y + Sf(10f), T("INSTALLED", "KURULU", "已安装"), ColCyanBg, ColCyanBd, ColCyan, maxX);
+                else
+                    DrawTag(g, nx, c3.Y + Sf(10f), T("REMOVED", "KALDIRILDI", "已卸载"), ColSafeBg, ColSafeBd, ColSafe, maxX);
+
+                string d3 = T(
+                    "Removes Microsoft.WindowsStore via official Appx cmdlet or restores it cleanly with Microsoft's wsreset -i. WinGet stays intact.",
+                    "Resmi Appx komutuyla Microsoft Store'u kaldırır veya wsreset -i ile eksiksiz geri kurar. WinGet zarar görmez.",
+                    "通过官方 Appx 命令卸载微软商店，或使用微软内置 wsreset -i 一键重装；不影响 WinGet 软件包管理器。");
+                DrawText(g, d3, _fSub, ColTextSecondary, new RectangleF(tx, c3.Y + Sf(32f), c3.Width - Sf(32f), Sf(17f)), StringAlignment.Near);
+
+                float by = c3.Bottom - Sf(36f);
+                float bx = tx;
+                bool canRemSt = !_isBusy && _isAdmin && AdvStatus.StoreInstalled;
+                RectangleF bStRem = new RectangleF(bx, by, Sf(156f), Sf(26f));
+                DrawDangerPillBtn(g, bStRem, T("Remove Store", "Store'u Kaldır", "卸载微软商店"), IsHovered("adv_store_remove", null), canRemSt);
+                if (canRemSt) AddZone(bStRem, "adv_store_remove", null);
+                bx = bStRem.Right + Sf(8f);
+
+                bool canInstSt = !_isBusy;
+                RectangleF bStInst = new RectangleF(bx, by, Sf(198f), Sf(26f));
+                DrawPillBtn(g, bStInst, T("Reinstall Store (wsreset -i)", "Store'u Geri Kur (wsreset)", "重装微软商店 (wsreset -i)"), IsHovered("adv_store_reinstall", null), !AdvStatus.StoreInstalled, canInstSt);
+                if (canInstSt) AddZone(bStInst, "adv_store_reinstall", null);
+            }
+            y += cardH + Sf(8f);
+
+            // --- CARD 4: SAFE BACKUP-FIRST REGISTRY CLEANUP ---
+            float regH = Sf(114f);
+            RectangleF c4 = new RectangleF(0, y, availW, regH);
+            if (c4.Bottom >= -4 && c4.Top <= ClientSize.Height + 4)
+            {
+                DrawBox(g, c4, Sf(10f), ColCard, RegScan.Scanned && RegScan.TotalCount > 0 ? ColSafeBd : ColBorder);
+                float tx = c4.X + Sf(16f);
+                float maxX = c4.Right - Sf(16f);
+                string t4 = T("Safe Registry Cleanup (HKCU)", "Güvenli Kayıt Defteri Temizliği (HKCU)", "安全注册表清理（自动 .reg 备份）");
+                float w4 = Math.Min(MeasureTight(g, t4, _fTitle).Width + Sf(4f), Sf(340f));
+                DrawTextTight(g, t4, _fTitle, ColTextPrimary, new RectangleF(tx, c4.Y + Sf(9f), w4, Sf(19f)));
+                float nx = DrawTag(g, tx + w4 + Sf(8f), c4.Y + Sf(10f), T("SAFE", "GÜVENLİ", "安全"), ColSafeBg, ColSafeBd, ColSafe, maxX);
+                nx = DrawTag(g, nx, c4.Y + Sf(10f), T("AUTO .REG BACKUP", "OTO .REG YEDEK", "自动 .reg 备份"), ColCyanBg, ColCyanBd, ColCyan, maxX);
+
+                if (RegScan.Scanned)
+                {
+                    string cntTag = RegScan.TotalCount > 0
+                        ? string.Format(T("{0} STALE FOUND", "{0} KALINTI", "发现 {0} 项"), RegScan.TotalCount)
+                        : T("CLEAN", "TEMİZ", "已洁净");
+                    DrawTag(g, nx, c4.Y + Sf(10f), cntTag,
+                        RegScan.TotalCount > 0 ? ColAmberBg : ColSafeBg,
+                        RegScan.TotalCount > 0 ? ColAmberBd : ColSafeBd,
+                        RegScan.TotalCount > 0 ? ColAmber : ColSafe, maxX);
+                }
+
+                string d4 = T(
+                    "Scans dead local .exe refs in MuiCache, AppCompat Store, AppSwitched & RunMRU/TypedPaths. Never touches CLSID, drivers, or USB drives.",
+                    "MuiCache, AppCompat, AppSwitched silinmiş .exe kayıtları ve RunMRU/TypedPaths tarar. CLSID, sürücü veya harici disklere dokunmaz.",
+                    "仅扫描 MuiCache、AppCompat、AppSwitched 失效本地程序残留及 RunMRU/TypedPaths 历史，绝不触碰 CLSID、驱动或系统服务。");
+                DrawText(g, d4, _fSub, ColTextSecondary, new RectangleF(tx, c4.Y + Sf(32f), c4.Width - Sf(32f), Sf(17f)), StringAlignment.Near);
+
+                string summary = RegScan.Scanned
+                    ? string.Format(
+                        T("Scan Result — MuiCache: {0}  ·  AppCompat: {1}  ·  AppSwitched: {2}  ·  RunMRU / TypedPaths: {3}   (Total: {4})",
+                          "Tarama Sonucu — MuiCache: {0}  ·  AppCompat: {1}  ·  AppSwitched: {2}  ·  RunMRU / TypedPaths: {3}   (Toplam: {4})",
+                          "扫描结果 — MuiCache: {0}  ·  AppCompat: {1}  ·  AppSwitched: {2}  ·  运行/路径历史: {3}   （共 {4} 项）"),
+                        RegScan.MuiCacheCount, RegScan.AppCompatCount, RegScan.AppSwitchedCount, RegScan.MruCount, RegScan.TotalCount)
+                    : T("Click 'Scan Registry' for a read-only check. 'Backup & Clean' saves a double-click restorable .reg file first.",
+                        "Salt okunur tarama için 'Kayıt Defterini Tara' tıklayın. 'Yedekle ve Temizle' önce geri yüklenebilir .reg yedeği alır.",
+                        "点击「扫描注册表」进行只读检查；「备份并清理」会先导出可双击还原的标准 .reg 备份文件。");
+                DrawText(g, summary, _fSmall, RegScan.Scanned ? ColCyan : ColTextMuted,
+                    new RectangleF(tx, c4.Y + Sf(52f), c4.Width - Sf(32f), Sf(16f)), StringAlignment.Near);
+
+                float by = c4.Bottom - Sf(36f);
+                float bx = tx;
+                RectangleF bRegScan = new RectangleF(bx, by, Sf(148f), Sf(26f));
+                DrawPillBtn(g, bRegScan, T("Scan Registry", "Kayıt Defterini Tara", "扫描注册表"), IsHovered("adv_reg_scan", null), false, !_isBusy);
+                if (!_isBusy) AddZone(bRegScan, "adv_reg_scan", null);
+                bx = bRegScan.Right + Sf(8f);
+
+                bool canClean = !_isBusy && RegScan.Scanned && RegScan.TotalCount > 0;
+                string clnLbl = RegScan.TotalCount > 0
+                    ? string.Format(T("Backup & Clean ({0})", "Yedekle & Temizle ({0})", "备份并清理 ({0})"), RegScan.TotalCount)
+                    : T("Backup & Clean", "Yedekle & Temizle", "备份并清理");
+                RectangleF bRegClean = new RectangleF(bx, by, Sf(178f), Sf(26f));
+                DrawPillBtn(g, bRegClean, clnLbl, IsHovered("adv_reg_clean", null), canClean, canClean);
+                if (canClean) AddZone(bRegClean, "adv_reg_clean", null);
+                bx = bRegClean.Right + Sf(8f);
+
+                RectangleF bBackups = new RectangleF(bx, by, Sf(164f), Sf(26f));
+                DrawPillBtn(g, bBackups, T("Open Backups Folder", "Yedek Klasörünü Aç", "打开备份目录"), IsHovered("adv_open_backups", null), false, true);
+                AddZone(bBackups, "adv_open_backups", null);
+            }
+            y += regH + Sf(6f);
+
+            return (int)Math.Ceiling(y + _scrollY + Sf(6f));
+        }
+
+        private void DrawDangerPillBtn(Graphics g, RectangleF r, string text, bool hovered, bool enabled)
+        {
+            Color bg, bd, fg;
+            if (!enabled) { bg = ColCard; bd = Color.FromArgb(34, 42, 54); fg = ColTextMuted; }
+            else { bg = hovered ? ColDangerHover : ColDangerBg; bd = hovered ? ColDanger : ColDangerBd; fg = ColDanger; }
+            DrawBox(g, r, Sf(7f), bg, bd);
+            DrawText(g, text, _fBtn, fg, r, StringAlignment.Center);
+        }
+
         // ==================== SHARED DRAWING HELPERS ====================
         private void DrawCheckbox(Graphics g, RectangleF r, bool isChecked, Color activeColor)
         {
@@ -989,6 +1224,24 @@ namespace WinForge
                 _content.UpdateState.ExcludeDrivers = true;
                 _content.UpdateState.PreventAutoReboot = true;
 
+                _content.AdvStatus = new AdvancedStatus();
+                _content.AdvStatus.DefenderRealTimeEnabled = true;
+                _content.AdvStatus.DefenderTamperProtected = true;
+                _content.AdvStatus.DefenderChecked = true;
+                _content.AdvStatus.EdgeInstalled = true;
+                _content.AdvStatus.EdgeVersion = "157.0";
+                _content.AdvStatus.StoreInstalled = true;
+                _content.AdvStatus.StoreChecked = true;
+
+                _content.RegScan = new RegistryScanResult();
+                _content.RegScan.Scanned = true;
+                _content.RegScan.MuiCacheCount = 19;
+                _content.RegScan.AppCompatCount = 14;
+                _content.RegScan.AppSwitchedCount = 7;
+                _content.RegScan.MruCount = 6;
+                for (int i = 0; i < 46; i++)
+                    _content.RegScan.Entries.Add(new RegistryJunkEntry());
+
                 _statusText = T(
                     "Ready · All tweaks are live-inspected and 100% reversible with automatic snapshot backups.",
                     "Hazır · Tüm ayarlar canlı okunur ve otomatik yedekleme ile %100 geri alınabilir.",
@@ -998,6 +1251,7 @@ namespace WinForge
             {
                 TweaksEngine.RefreshLiveStates(_content.Tweaks);
                 _content.UpdateState = UpdatesAndRepairEngine.ReadUpdatePolicy();
+                _content.AdvStatus = AdvancedEngine.ReadFastStatus();
                 _statusText = T(
                     "Ready · Click any tab to install apps, customize reversible tweaks, manage updates, or run repairs.",
                     "Hazır · Uygulama kurmak, ayarları düzenlemek veya sistem onarmak için sekmeleri kullanın.",
@@ -1011,10 +1265,12 @@ namespace WinForge
             {
                 string ver;
                 bool ok = WingetEngine.IsWingetAvailable(out ver);
+                AdvancedStatus adv = AdvancedEngine.ReadFullStatus();
                 SafeInvoke(delegate
                 {
                     _content.WingetOk = ok;
                     _content.WingetVersion = ver;
+                    _content.AdvStatus = adv;
                     _content.Invalidate();
                 });
             });
@@ -1290,6 +1546,168 @@ namespace WinForge
                 if (sc != null && !_cfg.DemoMode)
                     UpdatesAndRepairEngine.LaunchShortcut(sc);
             }
+            else if (key == "adv_def_security")
+            {
+                if (!_cfg.DemoMode) AdvancedEngine.OpenWindowsSecurity();
+            }
+            else if (key == "adv_open_backups")
+            {
+                if (!_cfg.DemoMode) AdvancedEngine.OpenBackupDirectory();
+            }
+            else if (key == "adv_def_disable")
+            {
+                if (_cfg.DemoMode || !_isAdmin || _isBusy) return;
+                if (!ConfirmExpertAction(
+                    T("Disable Windows Defender Policy?", "Windows Defender Devre Dışı Bırakılsın mı?", "确认禁用 Windows Defender 策略？"),
+                    T("This disables Windows Defender Real-Time Protection via official Group Policy.\n\nOnly proceed if you use another antivirus or a dedicated test environment. You can restore it anytime with 1 click.\n\nContinue?",
+                      "Bu işlem Windows Defender Gerçek Zamanlı Korumayı resmi Grup İlkesi ile devre dışı bırakır.\n\nYalnızca başka bir antivirüs kullanıyorsanız veya test ortamındaysanız devam edin. İstediğiniz zaman tek tıkla geri açabilirsiniz.\n\nDevam edilsin mi?",
+                      "此操作将通过官方组策略禁用 Windows Defender 实时保护。\n\n仅建议在已安装其他杀毒软件或测试环境下使用，随时可一键恢复。\n\n是否继续？")))
+                    return;
+
+                SetBusy(true, T("Applying Windows Defender policy...", "Windows Defender politikası uygulanıyor...", "正在应用 Windows Defender 策略..."), true);
+                ThreadPool.QueueUserWorkItem(delegate
+                {
+                    bool blocked;
+                    bool ok = AdvancedEngine.DisableDefenderPolicy(AppendLog, out blocked);
+                    AdvancedStatus st = AdvancedEngine.ReadFullStatus();
+                    SafeInvoke(delegate
+                    {
+                        _isBusy = false; _progressRatio = 1f;
+                        _content.AdvStatus = st;
+                        _content.Configure(_scale, Lang, _activeTab, _isAdmin, false);
+                        if (blocked)
+                        {
+                            _statusIsSuccess = false;
+                            _statusText = T("Blocked by Tamper Protection — turn OFF Tamper Protection in Windows Security first.",
+                                "Kurcalama Koruması aktif — önce Windows Güvenliği'nden Kurcalama Korumasını kapatın.",
+                                "已被防篡改保护阻止 — 请先在 Windows 安全中心关闭「篡改保护」后再试。");
+                            if (MessageBox.Show(this,
+                                T("Windows Security Tamper Protection is currently ON, so Windows blocks apps from changing Defender.\n\nOpen Windows Security settings now so you can toggle Tamper Protection manually?",
+                                  "Windows Güvenliği Kurcalama Koruması şu an AÇIK olduğu için Windows bu değişikliği engelledi.\n\nKurcalama Korumasını manuel kapatmak için Windows Güvenliği açılsın mı?",
+                                  "当前 Windows 安全中心「篡改保护」已开启，系统已阻止第三方修改 Defender。\n\n是否立即打开 Windows 安全中心以便手动关闭篡改保护？"),
+                                T("Tamper Protection Active", "Kurcalama Koruması Açık", "篡改保护已开启"),
+                                MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                            {
+                                AdvancedEngine.OpenWindowsSecurity();
+                            }
+                        }
+                        else
+                        {
+                            _statusIsSuccess = ok;
+                            _statusText = ok
+                                ? T("Windows Defender policy disabled (click 'Restore Defender' anytime to re-enable).", "Windows Defender politikası devre dışı bırakıldı (istediğiniz zaman geri açabilirsiniz).", "已禁用 Defender 实时保护策略（随时可点击「恢复 Defender 保护」还原）。")
+                                : T("Could not update Defender policy (check Console).", "Defender politikası güncellenemedi (Konsola bakın).", "Defender 策略应用失败（请查看日志）。");
+                        }
+                        Invalidate();
+                    });
+                });
+            }
+            else if (key == "adv_def_restore")
+            {
+                if (_cfg.DemoMode || !_isAdmin || _isBusy) return;
+                RunAsyncTask(T("Restoring Windows Defender protection...", "Windows Defender koruması geri yükleniyor...", "正在恢复 Windows Defender 实时保护..."), true, delegate
+                {
+                    AdvancedEngine.RestoreDefenderPolicy(AppendLog);
+                    AdvancedStatus st = AdvancedEngine.ReadFullStatus();
+                    SafeInvoke(delegate { _content.AdvStatus = st; });
+                }, T("Windows Defender defaults restored.", "Windows Defender varsayılan koruması geri yüklendi.", "Windows Defender 默认保护已恢复。"));
+            }
+            else if (key == "adv_edge_remove")
+            {
+                if (_cfg.DemoMode || !_isAdmin || _isBusy) return;
+                if (!ConfirmExpertAction(
+                    T("Remove Microsoft Edge Browser?", "Microsoft Edge Kaldırılsın mı?", "确认卸载 Microsoft Edge？"),
+                    T("Removes Microsoft Edge browser using the official installer.\n\nEdge WebView2 Runtime is NOT touched, and you can reinstall Edge anytime with 1 click via WinGet.\n\nContinue?",
+                      "Microsoft Edge tarayıcısı resmi kaldırıcı ile kaldırılacak.\n\nEdge WebView2 Runtime kesinlikle korunur ve Edge'i istediğiniz zaman WinGet ile tek tıkla geri kurabilirsiniz.\n\nDevam edilsin mi?",
+                      "将使用官方卸载程序移除 Microsoft Edge 浏览器。\n\n不会影响 Edge WebView2 运行时，且随时可通过 WinGet 一键重装。\n\n是否继续？")))
+                    return;
+
+                RunAsyncTask(T("Removing Microsoft Edge browser...", "Microsoft Edge kaldırılıyor...", "正在卸载 Microsoft Edge 浏览器..."), true, delegate
+                {
+                    AdvancedEngine.RemoveEdge(AppendLog, delegate { return _cancelFlag || IsDisposed; });
+                    AdvancedStatus st = AdvancedEngine.ReadFullStatus();
+                    SafeInvoke(delegate { _content.AdvStatus = st; });
+                }, T("Microsoft Edge removal finished (see Console).", "Microsoft Edge kaldırma işlemi tamamlandı (Konsola bakın).", "Microsoft Edge 卸载流程已完成（详见日志）。"));
+            }
+            else if (key == "adv_edge_reinstall")
+            {
+                if (_cfg.DemoMode || _isBusy) return;
+                RunAsyncTask(T("Reinstalling Microsoft Edge via WinGet...", "Microsoft Edge WinGet ile yeniden kuruluyor...", "正在通过 WinGet 重新安装 Microsoft Edge..."), true, delegate
+                {
+                    AdvancedEngine.ReinstallEdge(AppendLog, delegate { return _cancelFlag || IsDisposed; });
+                    AdvancedStatus st = AdvancedEngine.ReadFullStatus();
+                    SafeInvoke(delegate { _content.AdvStatus = st; });
+                }, T("Microsoft Edge installation finished.", "Microsoft Edge kurulumu tamamlandı.", "Microsoft Edge 重新安装完成。"));
+            }
+            else if (key == "adv_store_remove")
+            {
+                if (_cfg.DemoMode || !_isAdmin || _isBusy) return;
+                if (!ConfirmExpertAction(
+                    T("Remove Microsoft Store?", "Microsoft Store Kaldırılsın mı?", "确认卸载 Microsoft Store？"),
+                    T("Removes Microsoft.WindowsStore for the current user via official Appx cmdlet.\n\nWinGet (App Installer) remains intact, and you can reinstall Microsoft Store anytime with 1 click (wsreset -i).\n\nContinue?",
+                      "Microsoft Store resmi Appx komutu ile kaldırılacak.\n\nWinGet etkilenmez ve Microsoft Store'u istediğiniz zaman tek tıkla (wsreset -i) geri kurabilirsiniz.\n\nDevam edilsin mi?",
+                      "将通过官方 Appx 命令卸载微软商店。\n\nWinGet 保持正常可用，随时可点击「重装微软商店 (wsreset -i)」一键恢复。\n\n是否继续？")))
+                    return;
+
+                RunAsyncTask(T("Removing Microsoft Store...", "Microsoft Store kaldırılıyor...", "正在卸载 Microsoft Store..."), true, delegate
+                {
+                    AdvancedEngine.RemoveStore(AppendLog, delegate { return _cancelFlag || IsDisposed; });
+                    AdvancedStatus st = AdvancedEngine.ReadFullStatus();
+                    SafeInvoke(delegate { _content.AdvStatus = st; });
+                }, T("Microsoft Store removed cleanly.", "Microsoft Store kaldırıldı.", "Microsoft Store 已卸载。"));
+            }
+            else if (key == "adv_store_reinstall")
+            {
+                if (_cfg.DemoMode || _isBusy) return;
+                RunAsyncTask(T("Reinstalling Microsoft Store (wsreset -i)...", "Microsoft Store yeniden kuruluyor (wsreset -i)...", "正在通过 wsreset -i 重装微软商店..."), true, delegate
+                {
+                    AdvancedEngine.ReinstallStore(AppendLog, delegate { return _cancelFlag || IsDisposed; });
+                    AdvancedStatus st = AdvancedEngine.ReadFullStatus();
+                    SafeInvoke(delegate { _content.AdvStatus = st; });
+                }, T("Microsoft Store reinstall triggered (finishes in 10-30s).", "Microsoft Store geri yükleme başlatıldı (10-30 sn içinde tamamlanır).", "已触发微软商店重装（10-30 秒内在后台完成）。"));
+            }
+            else if (key == "adv_reg_scan")
+            {
+                if (_cfg.DemoMode || _isBusy) return;
+                RunAsyncTask(T("Scanning safe HKCU Registry keys (read-only)...", "Güvenli HKCU Kayıt Defteri anahtarları taranıyor...", "正在只读扫描安全 HKCU 注册表项..."), false, delegate
+                {
+                    RegistryScanResult scan = AdvancedEngine.ScanSafeRegistry();
+                    AppendLog(string.Format("[Registry] Scan complete: {0} entries (MuiCache={1}, AppCompat={2}, AppSwitched={3}, MRU={4}).",
+                        scan.TotalCount, scan.MuiCacheCount, scan.AppCompatCount, scan.AppSwitchedCount, scan.MruCount));
+                    SafeInvoke(delegate { _content.RegScan = scan; });
+                }, T("Safe Registry scan complete — review counts before cleaning.", "Kayıt Defteri taraması tamamlandı — temizlemeden önce sayıları inceleyin.", "安全注册表扫描完成 — 请核对数量后点击「备份并清理」。"));
+            }
+            else if (key == "adv_reg_clean")
+            {
+                if (_cfg.DemoMode || _isBusy || _content.RegScan == null || _content.RegScan.TotalCount == 0) return;
+                int cnt = _content.RegScan.TotalCount;
+                if (!ConfirmExpertAction(
+                    T("Backup & Clean Registry?", "Kayıt Defteri Yedeklenip Temizlensin mi?", "确认备份并清理注册表？"),
+                    string.Format(
+                        T("WinForge will FIRST export a standard restorable .reg backup file to %APPDATA%\\WinForge\\backups\\, and THEN clean {0} verified stale HKCU entries.\n\nDouble-click the backup .reg file anytime to undo 100%.\n\nProceed?",
+                          "WinForge ÖNCE %APPDATA%\\WinForge\\backups\\ klasörüne standart bir .reg yedek dosyası kaydedecek, ARDINDAN {0} doğrulanmış HKCU kalıntısını temizleyecek.\n\nYedek .reg dosyasına çift tıklayarak her şeyi %100 geri alabilirsiniz.\n\nDevam edilsin mi?",
+                          "WinForge 将先导出标准可还原的 .reg 备份文件至 %APPDATA%\\WinForge\\backups\\，验证备份成功后再清理 {0} 项失效残留。\n\n随时双击备份 .reg 文件即可 100% 还原。\n\n是否继续？"),
+                        cnt)))
+                    return;
+
+                RegistryScanResult targetScan = _content.RegScan;
+                RunAsyncTask(T("Exporting .reg backup and cleaning safe HKCU entries...", ".reg yedeği alınıyor ve güvenli HKCU kayıtları temizleniyor...", "正在导出 .reg 备份并清理安全注册表残留..."), true, delegate
+                {
+                    string backupPath = System.IO.Path.Combine(
+                        AdvancedEngine.GetBackupDirectory(),
+                        "reg-cleanup-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".reg");
+                    int removed = AdvancedEngine.CleanScannedRegistry(Microsoft.Win32.Registry.CurrentUser, "HKEY_CURRENT_USER", targetScan, backupPath, AppendLog);
+                    RegistryScanResult after = AdvancedEngine.ScanSafeRegistry();
+                    after.LastBackupPath = targetScan.LastBackupPath;
+                    SafeInvoke(delegate { _content.RegScan = after; });
+                    AppendLog("[Registry] Remaining entries after clean: " + after.TotalCount + " (cleaned " + removed + ").");
+                }, T("Registry backup saved & safe cleanup complete.", ".reg yedeği alındı ve güvenli temizlik tamamlandı.", "已完成 .reg 备份并安全清理注册表残留。"));
+            }
+        }
+
+        private bool ConfirmExpertAction(string title, string message)
+        {
+            return MessageBox.Show(this, message, title, MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) == DialogResult.Yes;
         }
 
         private void ApplyTweaksAsync()
@@ -1425,6 +1843,7 @@ namespace WinForge
             else if (key == "tab_1") SwitchTab(1);
             else if (key == "tab_2") SwitchTab(2);
             else if (key == "tab_3") SwitchTab(3);
+            else if (key == "tab_4") SwitchTab(4);
             else if (key == "elevate") { if (!_isAdmin && !_cfg.DemoMode && WinNative.RestartAsAdministrator("--tab " + _activeTab)) Close(); }
             else if (key == "toggle_console") { _consoleOpen = !_consoleOpen; LayoutAll(); Invalidate(); }
             else if (key == "cancel_task") { _cancelFlag = true; AppendLog("Cancelling current task..."); }
@@ -1539,36 +1958,48 @@ namespace WinForge
             float h = Sf(36f);
             float w = ClientSize.Width;
 
-            RectangleF track = new RectangleF(pad, y, Sf(568f), h);
+            RectangleF track = new RectangleF(pad, y, Sf(688f), h);
             DrawBox(g, track, Sf(9f), Color.FromArgb(16, 21, 28), ColDivider);
 
             string[] labels = new string[]
             {
                 T("Apps (WinGet)", "Uygulamalar", "软件安装"),
                 T("Tweaks (21)", "Ayarlar (21)", "系统优化 (21)"),
-                T("Windows Update", "Güncellemeler", "系统更新"),
-                T("Repair & Tools", "Onarım ve Araçlar", "修复与工具")
+                T("Updates", "Güncellemeler", "系统更新"),
+                T("Repair & Tools", "Onarım", "修复与工具"),
+                T("Advanced", "Gelişmiş", "高级选项")
             };
 
             float innerPad = Sf(3f);
-            float tabW = (track.Width - innerPad * 5f) / 4f;
-            for (int i = 0; i < 4; i++)
+            float tabW = (track.Width - innerPad * 6f) / 5f;
+            for (int i = 0; i < 5; i++)
             {
                 RectangleF tr = new RectangleF(track.X + innerPad + i * (tabW + innerPad), track.Y + innerPad, tabW, track.Height - innerPad * 2f);
                 string key = "tab_" + i;
                 bool active = (_activeTab == i);
                 bool hov = (_hoverKey == key);
+                bool isAdv = (i == 4);
                 if (active)
-                    DrawBox(g, tr, Sf(7f), Color.FromArgb(24, 46, 42), Color.FromArgb(42, 148, 112));
+                {
+                    if (isAdv)
+                        DrawBox(g, tr, Sf(7f), Color.FromArgb(48, 38, 18), Color.FromArgb(156, 108, 24));
+                    else
+                        DrawBox(g, tr, Sf(7f), Color.FromArgb(24, 46, 42), Color.FromArgb(42, 148, 112));
+                }
                 else if (hov)
+                {
                     DrawBox(g, tr, Sf(7f), Color.FromArgb(26, 33, 43), ColDivider);
+                }
 
-                DrawStr(g, labels[i], _fTab, active ? ColSafe : (hov ? ColTextPrimary : ColTextSecondary), tr, StringAlignment.Center);
+                Color txtCol = active
+                    ? (isAdv ? ColAmber : ColSafe)
+                    : (hov ? ColTextPrimary : (isAdv ? Color.FromArgb(196, 164, 96) : ColTextSecondary));
+                DrawStr(g, labels[i], _fTab, txtCol, tr, StringAlignment.Center);
                 _chromeZones.Add(new ClickZone(tr, key, null));
             }
 
             // Quick Restore Point button on far right
-            RectangleF rpRc = new RectangleF(w - pad - Sf(158f), y + Sf(3f), Sf(158f), Sf(30f));
+            RectangleF rpRc = new RectangleF(w - pad - Sf(156f), y + Sf(3f), Sf(156f), Sf(30f));
             if (rpRc.X > track.Right + Sf(10f))
             {
                 bool hov = _hoverKey == "quick_restore";

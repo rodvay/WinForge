@@ -137,6 +137,7 @@ Write-Host "Compiling WinForge.exe..."
     "$scriptDir\TweaksEngine.cs" `
     "$scriptDir\WingetApps.cs" `
     "$scriptDir\UpdatesAndRepair.cs" `
+    "$scriptDir\AdvancedEngine.cs" `
     "$scriptDir\Program.cs"
 
 if ($LASTEXITCODE -ne 0) { throw "Compilation failed (ExitCode=$LASTEXITCODE)" }
