@@ -116,8 +116,9 @@ function New-WinForgeIcon {
 Write-Host "Generating app.ico..."
 New-WinForgeIcon -OutPath (Join-Path $scriptDir "app.ico")
 
-$csc = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
-if (-not (Test-Path $csc)) { throw "csc.exe not found: $csc" }
+$csc = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+if (-not (Test-Path $csc)) { $csc = Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319\csc.exe" }
+if (-not (Test-Path $csc)) { throw "csc.exe not found under $env:WINDIR\Microsoft.NET" }
 
 Write-Host "Compiling WinForge.exe..."
 & $csc `

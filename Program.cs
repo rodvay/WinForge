@@ -10,8 +10,8 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("WinForge — Complete Reversible Windows Utility")]
 [assembly: AssemblyDescription("Lightweight (~210 KB), zero-dependency, 100% reversible Windows 10/11 utility: 60 verified WinGet apps, 40 live tweaks (Desktop/Laptop presets + JSON config), Bloatware/OneDrive debloater, Windows Update & 1-click DNS, Optional Features & Repairs, and Optional Advanced tab (EN/TR/zh-CN).")]
 [assembly: AssemblyProduct("WinForge")]
-[assembly: AssemblyVersion("2.0.4.0")]
-[assembly: AssemblyFileVersion("2.0.4.0")]
+[assembly: AssemblyVersion("2.0.5.0")]
+[assembly: AssemblyFileVersion("2.0.5.0")]
 
 namespace WinForge
 {
@@ -1508,7 +1508,7 @@ namespace WinForge
                 {
                     UpdateDpiScale(winDpi);
                     ClientSize = new Size(S(LogicalW), S(LogicalH));
-                    MinimumSize = new Size(S(780), S(560));
+                    MinimumSize = new Size(S(840), S(580));
                 }
             }
             catch { }
@@ -1519,7 +1519,12 @@ namespace WinForge
             if (m.Msg == WinNative.WM_DPICHANGED)
             {
                 int newDpi = (int)(m.WParam.ToInt64() & 0xFFFF);
-                if (newDpi >= 72) { UpdateDpiScale(newDpi); Invalidate(); }
+                if (newDpi >= 72)
+                {
+                    UpdateDpiScale(newDpi);
+                    MinimumSize = new Size(S(840), S(580));
+                    Invalidate();
+                }
             }
             base.WndProc(ref m);
         }
