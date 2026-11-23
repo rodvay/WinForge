@@ -271,8 +271,22 @@ namespace WinForge
             }
         }
 
+        internal static Encoding ResolveProcessEncoding(string fileName)
+        {
+            string exe = Path.GetFileName(fileName ?? "").ToLowerInvariant();
+            // sfc.exe outputs UTF-16 LE; reading as UTF-8 truncates lines at NUL bytes!
+            if (exe == "sfc.exe" || exe == "sfc") return Encoding.Unicode;
+            // winget & powershell (with UTF-8 OutputEncoding) output UTF-8
+            if (exe == "winget.exe" || exe == "winget" || exe == "powershell.exe" || exe == "powershell" || exe == "pwsh.exe")
+                return Encoding.UTF8;
+            // Legacy Win32 console tools (DISM, net, netsh, ipconfig, bcdedit, powercfg, w32tm) output OEM codepage (GBK 936 on zh-CN, CP857 on tr-TR, CP437 on en-US)
+            try { return Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage); }
+            catch { return Encoding.Default; }
+        }
+
         public static int RunProcessStreaming(string fileName, string args, Action<string> onLine, Func<bool> isCancelled)
         {
+            Encoding enc = ResolveProcessEncoding(fileName);
             ProcessStartInfo psi = new ProcessStartInfo();
             psi.FileName = fileName;
             psi.Arguments = args;
@@ -280,8 +294,8 @@ namespace WinForge
             psi.CreateNoWindow = true;
             psi.RedirectStandardOutput = true;
             psi.RedirectStandardError = true;
-            psi.StandardOutputEncoding = Encoding.UTF8;
-            psi.StandardErrorEncoding = Encoding.UTF8;
+            psi.StandardOutputEncoding = enc;
+            psi.StandardErrorEncoding = enc;
 
             using (Process p = new Process())
             {
@@ -320,13 +334,23 @@ namespace WinForge
             }
         }
 
-        private static string CleanConsoleLine(string raw)
+        public static int RunPowerShellEncoded(string script, Action<string> onLine, Func<bool> isCancelled)
+        {
+            string full = "$ProgressPreference = 'SilentlyContinue'; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " + (script ?? "");
+            string b64 = Convert.ToBase64String(Encoding.Unicode.GetBytes(full));
+            return RunProcessStreaming("powershell.exe", "-NoProfile -NonInteractive -OutputFormat Text -ExecutionPolicy Bypass -EncodedCommand " + b64, onLine, isCancelled);
+        }
+
+        internal static string CleanConsoleLine(string raw)
         {
             if (string.IsNullOrEmpty(raw)) return "";
-            // Strip spinner-only noise lines from winget output
+            if (raw.IndexOf('\0') >= 0) raw = raw.Replace("\0", "");
+            // Strip spinner-only noise & PowerShell CLIXML startup progress frames
             string t = raw.Trim();
             if (t.Length == 0) return "";
             if (t == "-" || t == "\\" || t == "|" || t == "/") return "";
+            if (t == "#< CLIXML" || (t.StartsWith("<Objs ", StringComparison.Ordinal) && t.IndexOf("S=\"progress\"", StringComparison.Ordinal) >= 0))
+                return "";
             return t;
         }
     }

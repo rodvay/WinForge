@@ -166,7 +166,13 @@ namespace WinForge
                 string dump = allOut.ToString();
                 foreach (WingetAppItem app in catalog)
                 {
-                    app.IsInstalled = dump.IndexOf(app.Id, StringComparison.OrdinalIgnoreCase) >= 0;
+                    bool hit = dump.IndexOf(app.Id, StringComparison.OrdinalIgnoreCase) >= 0;
+                    if (!hit && app.Id.Length > 24)
+                    {
+                        string trunc = app.Id.Substring(0, 22);
+                        hit = dump.IndexOf(trunc, StringComparison.OrdinalIgnoreCase) >= 0;
+                    }
+                    app.IsInstalled = hit;
                     if (app.IsInstalled) found++;
                 }
             }

@@ -186,25 +186,46 @@ namespace WinForge
             return st;
         }
 
-        private static string RunQuickPowerShell(string script, int timeoutMs)
+        internal static string RunQuickPowerShell(string script, int timeoutMs)
         {
             try
             {
+                string full = "$ProgressPreference = 'SilentlyContinue'; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " + (script ?? "");
+                string b64 = Convert.ToBase64String(Encoding.Unicode.GetBytes(full));
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = "powershell.exe";
-                psi.Arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"" + script + "\"";
+                psi.Arguments = "-NoProfile -NonInteractive -OutputFormat Text -ExecutionPolicy Bypass -EncodedCommand " + b64;
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
                 psi.RedirectStandardOutput = true;
                 psi.RedirectStandardError = true;
                 psi.StandardOutputEncoding = Encoding.UTF8;
+                psi.StandardErrorEncoding = Encoding.UTF8;
 
-                using (Process p = Process.Start(psi))
+                StringBuilder sb = new StringBuilder();
+                object sbLock = new object();
+                using (Process p = new Process())
                 {
-                    string txt = p.StandardOutput.ReadToEnd();
-                    p.WaitForExit(timeoutMs);
-                    return txt ?? "";
+                    p.StartInfo = psi;
+                    p.OutputDataReceived += delegate(object s, DataReceivedEventArgs e)
+                    {
+                        if (!string.IsNullOrEmpty(e.Data))
+                            lock (sbLock) { sb.AppendLine(e.Data); }
+                    };
+                    p.ErrorDataReceived += delegate(object s, DataReceivedEventArgs e) { };
+                    p.Start();
+                    p.BeginOutputReadLine();
+                    p.BeginErrorReadLine();
+                    if (!p.WaitForExit(Math.Max(1000, timeoutMs)))
+                    {
+                        try { p.Kill(); } catch { }
+                    }
+                    else
+                    {
+                        p.WaitForExit();
+                    }
                 }
+                lock (sbLock) { return sb.ToString(); }
             }
             catch
             {
@@ -236,10 +257,7 @@ namespace WinForge
             bool ok1 = RegHelper.WriteDword(Registry.LocalMachine, DefPolicyRoot, "DisableAntiSpyware", 1);
             bool ok2 = RegHelper.WriteDword(Registry.LocalMachine, DefPolicyRt, "DisableRealtimeMonitoring", 1);
 
-            int code = WinNative.RunProcessStreaming(
-                "powershell.exe",
-                "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"Set-MpPreference -DisableRealtimeMonitoring $true\"",
-                log, null);
+            int code = WinNative.RunPowerShellEncoded("Set-MpPreference -DisableRealtimeMonitoring $true", log, null);
 
             if (log != null)
             {
@@ -255,10 +273,7 @@ namespace WinForge
             RegHelper.DeleteValueSafe(Registry.LocalMachine, DefPolicyRt, "DisableRealtimeMonitoring");
             RegHelper.DeleteValueSafe(Registry.LocalMachine, DefPolicyRoot, "DisableAntiSpyware");
 
-            int code = WinNative.RunProcessStreaming(
-                "powershell.exe",
-                "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"Set-MpPreference -DisableRealtimeMonitoring $false\"",
-                log, null);
+            int code = WinNative.RunPowerShellEncoded("Set-MpPreference -DisableRealtimeMonitoring $false", log, null);
 
             if (log != null) log("[Defender] Windows Defender defaults restored (exit=" + code + ").");
             return true;
@@ -367,10 +382,7 @@ namespace WinForge
         public static bool RemoveStore(Action<string> log, Func<bool> isCancelled)
         {
             if (log != null) log("[Store] Removing Microsoft.WindowsStore Appx package (WinGet / AppInstaller stays intact)...");
-            int code = WinNative.RunProcessStreaming(
-                "powershell.exe",
-                "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"Get-AppxPackage -Name Microsoft.WindowsStore | Remove-AppxPackage -ErrorAction Stop\"",
-                log, isCancelled);
+            int code = WinNative.RunPowerShellEncoded("Get-AppxPackage -Name Microsoft.WindowsStore | Remove-AppxPackage -ErrorAction Stop", log, isCancelled);
             if (log != null) log("[Store] Remove command finished (exit=" + code + ").");
             return code == 0;
         }
@@ -380,9 +392,8 @@ namespace WinForge
             if (log != null) log("[Store] Reinstalling Microsoft Store via official Microsoft wsreset.exe -i...");
 
             // First try re-registering local provisioned package if available
-            WinNative.RunProcessStreaming(
-                "powershell.exe",
-                "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"Get-AppxPackage -AllUsers Microsoft.WindowsStore | ForEach-Object { Add-AppxPackage -DisableDevelopmentMode -Register ($_.InstallLocation + '\\AppxManifest.xml') -ErrorAction SilentlyContinue }\"",
+            WinNative.RunPowerShellEncoded(
+                "Get-AppxPackage -AllUsers Microsoft.WindowsStore | ForEach-Object { Add-AppxPackage -DisableDevelopmentMode -Register ($_.InstallLocation + '\\AppxManifest.xml') -ErrorAction SilentlyContinue }",
                 log, isCancelled);
 
             // Official built-in Microsoft Store installer trigger (Windows 10/11)

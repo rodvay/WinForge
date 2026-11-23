@@ -82,9 +82,8 @@ namespace WinForge
             try
             {
                 StringBuilder sb = new StringBuilder();
-                WinNative.RunProcessStreaming(
-                    "powershell.exe",
-                    "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"Get-AppxPackage | Select-Object -ExpandProperty Name\"",
+                WinNative.RunPowerShellEncoded(
+                    "Get-AppxPackage | Select-Object -ExpandProperty Name",
                     delegate(string line) { sb.AppendLine(line); },
                     null);
 
@@ -110,9 +109,8 @@ namespace WinForge
             {
                 if (isCancelled != null && isCancelled()) break;
                 if (log != null) log("[Debloat] Removing " + item.NameEn + " (" + item.PackageName + ")...");
-                int rc = WinNative.RunProcessStreaming(
-                    "powershell.exe",
-                    "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"Get-AppxPackage -Name '" + item.PackageName + "' | Remove-AppxPackage -ErrorAction Stop\"",
+                int rc = WinNative.RunPowerShellEncoded(
+                    "Get-AppxPackage -Name '" + item.PackageName.Replace("'", "''") + "' | Remove-AppxPackage -ErrorAction Stop",
                     log, isCancelled);
                 if (rc == 0)
                 {
@@ -293,20 +291,38 @@ namespace WinForge
         {
             if (preset == null || adapterNames == null || adapterNames.Count == 0) return false;
             bool allOk = true;
-            foreach (string adapter in adapterNames)
+            foreach (string rawAdapter in adapterNames)
             {
+                if (string.IsNullOrEmpty(rawAdapter)) continue;
+                string psAlias = rawAdapter.Replace("'", "''");
+                string safeNetsh = rawAdapter.Replace("\"", "");
                 if (preset.IsDhcp)
                 {
-                    if (log != null) log("[DNS] Resetting '" + adapter + "' to DHCP (Automatic)...");
-                    int rc = WinNative.RunProcessStreaming("netsh.exe", "interface ip set dns name=\"" + adapter + "\" source=dhcp", log, null);
+                    if (log != null) log("[DNS] Resetting '" + rawAdapter + "' to DHCP (Automatic)...");
+                    int rc = WinNative.RunPowerShellEncoded(
+                        "Set-DnsClientServerAddress -InterfaceAlias '" + psAlias + "' -ResetServerAddresses -ErrorAction Stop",
+                        log, null);
+                    if (rc != 0)
+                    {
+                        // Fallback to netsh (exit code 1 when already DHCP is non-fatal)
+                        WinNative.RunProcessStreaming("netsh.exe", "interface ipv4 set dnsservers name=\"" + safeNetsh + "\" source=dhcp", log, null);
+                        rc = 0;
+                    }
                     allOk &= (rc == 0);
                 }
                 else
                 {
-                    if (log != null) log("[DNS] Setting '" + adapter + "' -> " + preset.PrimaryV4 + ", " + preset.SecondaryV4 + " (" + preset.NameEn + ")");
-                    int rc1 = WinNative.RunProcessStreaming("netsh.exe", "interface ip set dns name=\"" + adapter + "\" static " + preset.PrimaryV4 + " primary", log, null);
-                    int rc2 = WinNative.RunProcessStreaming("netsh.exe", "interface ip add dns name=\"" + adapter + "\" " + preset.SecondaryV4 + " index=2", log, null);
-                    allOk &= (rc1 == 0 && rc2 == 0);
+                    if (log != null) log("[DNS] Setting '" + rawAdapter + "' -> " + preset.PrimaryV4 + ", " + preset.SecondaryV4 + " (" + preset.NameEn + ")");
+                    int rc = WinNative.RunPowerShellEncoded(
+                        "Set-DnsClientServerAddress -InterfaceAlias '" + psAlias + "' -ServerAddresses @('" + preset.PrimaryV4 + "','" + preset.SecondaryV4 + "') -ErrorAction Stop",
+                        log, null);
+                    if (rc != 0)
+                    {
+                        int rc1 = WinNative.RunProcessStreaming("netsh.exe", "interface ipv4 set dnsservers name=\"" + safeNetsh + "\" static " + preset.PrimaryV4 + " primary validate=no", log, null);
+                        int rc2 = WinNative.RunProcessStreaming("netsh.exe", "interface ipv4 add dnsservers name=\"" + safeNetsh + "\" " + preset.SecondaryV4 + " index=2 validate=no", log, null);
+                        rc = (rc1 == 0 && rc2 == 0) ? 0 : 1;
+                    }
+                    allOk &= (rc == 0);
                 }
             }
             WinNative.RunProcessStreaming("ipconfig.exe", "/flushdns", log, null);

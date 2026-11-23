@@ -10,8 +10,8 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("WinForge — Complete Reversible Windows Utility")]
 [assembly: AssemblyDescription("Lightweight (~210 KB), zero-dependency, 100% reversible Windows 10/11 utility: 60 verified WinGet apps, 40 live tweaks (Desktop/Laptop presets + JSON config), Bloatware/OneDrive debloater, Windows Update & 1-click DNS, Optional Features & Repairs, and Optional Advanced tab (EN/TR/zh-CN).")]
 [assembly: AssemblyProduct("WinForge")]
-[assembly: AssemblyVersion("2.0.0.0")]
-[assembly: AssemblyFileVersion("2.0.0.0")]
+[assembly: AssemblyVersion("2.0.1.0")]
+[assembly: AssemblyFileVersion("2.0.1.0")]
 
 namespace WinForge
 {
@@ -1303,7 +1303,7 @@ namespace WinForge
         private float _scale = 1.0f;
         private int _activeTab;
         private bool _isBusy;
-        private bool _cancelFlag;
+        private volatile bool _cancelFlag;
         private bool _consoleOpen;
         private float _progressRatio;
         private string _statusText = "";
@@ -1318,6 +1318,7 @@ namespace WinForge
         private Font _fTab;
         private Font _fBtn;
         private Font _fStatus;
+        private Font _fSearch;
 
         public MainForm(LaunchConfig cfg)
         {
@@ -1547,7 +1548,8 @@ namespace WinForge
             _fTab = new Font(fam, PtToPx(8.8f), FontStyle.Bold, GraphicsUnit.Pixel);
             _fBtn = new Font(fam, PtToPx(8.3f), FontStyle.Bold, GraphicsUnit.Pixel);
             _fStatus = new Font(fam, PtToPx(8.4f), FontStyle.Regular, GraphicsUnit.Pixel);
-            _txtSearch.Font = new Font(fam, PtToPx(8.8f), FontStyle.Regular, GraphicsUnit.Pixel);
+            _fSearch = new Font(fam, PtToPx(8.8f), FontStyle.Regular, GraphicsUnit.Pixel);
+            _txtSearch.Font = _fSearch;
         }
 
         private void DisposeFonts()
@@ -1558,6 +1560,7 @@ namespace WinForge
             if (_fTab != null) { _fTab.Dispose(); _fTab = null; }
             if (_fBtn != null) { _fBtn.Dispose(); _fBtn = null; }
             if (_fStatus != null) { _fStatus.Dispose(); _fStatus = null; }
+            if (_fSearch != null) { _fSearch.Dispose(); _fSearch = null; }
         }
 
         private void UpdateSearchPlaceholder()
@@ -1664,6 +1667,13 @@ namespace WinForge
                         return;
                     }
                     tw.DesiredState = !tw.DesiredState;
+                    // Mutually exclusive Windows Power Plans
+                    if (tw.DesiredState && (tw.Id == "high_perf_power" || tw.Id == "ultimate_perf_power"))
+                    {
+                        string otherId = tw.Id == "high_perf_power" ? "ultimate_perf_power" : "high_perf_power";
+                        foreach (TweakDefinition o in _content.Tweaks)
+                            if (o.Id == otherId) o.DesiredState = false;
+                    }
                     _content.Invalidate();
                     Invalidate();
                 }
@@ -1672,8 +1682,11 @@ namespace WinForge
             {
                 foreach (TweakDefinition tw in _content.Tweaks)
                 {
-                    if (tw.InRecommendedPreset && (!tw.RequiresAdmin || _isAdmin))
-                        tw.DesiredState = true;
+                    if (!tw.RequiresAdmin || _isAdmin)
+                    {
+                        if (tw.InRecommendedPreset) tw.DesiredState = true;
+                        else if (tw.Id == "ultimate_perf_power") tw.DesiredState = tw.IsCurrentlyApplied;
+                    }
                 }
                 _statusText = T("Desktop Preset selected (includes Hibernation Off & Services Manual) — review and click 'Apply Changes'.",
                     "Masaüstü Profili seçildi (Hazırda Beklet Kapalı & Servisler Manuel dahil) — kontrol edip 'Uygula' tıklayın.",
@@ -1686,8 +1699,11 @@ namespace WinForge
             {
                 foreach (TweakDefinition tw in _content.Tweaks)
                 {
-                    if (tw.InLaptopPreset && (!tw.RequiresAdmin || _isAdmin))
-                        tw.DesiredState = true;
+                    if (!tw.RequiresAdmin || _isAdmin)
+                    {
+                        if (tw.InLaptopPreset) tw.DesiredState = true;
+                        else if (tw.InRecommendedPreset) tw.DesiredState = tw.IsCurrentlyApplied; // Never leave Desktop-only Hibernation Off pending on Laptop!
+                    }
                 }
                 _statusText = T("Laptop Preset selected (preserves Hibernation & battery sleep) — review and click 'Apply Changes'.",
                     "Dizüstü Profili seçildi (Hazırda Beklet ve pil tasarrufu korunur) — kontrol edip 'Uygula' tıklayın.",
@@ -1783,12 +1799,25 @@ namespace WinForge
                 DnsPreset preset = payload as DnsPreset;
                 if (preset == null || _cfg.DemoMode || !_isAdmin || _isBusy) return;
                 List<string> adapters = new List<string>(_content.DnsStatus.ActiveAdapters);
-                RunAsyncTask(T("Applying DNS: ", "DNS uygulanıyor: ", "正在切换 DNS: ") + preset.GetName(Lang) + "...", false, delegate
+                SetBusy(true, T("Applying DNS: ", "DNS uygulanıyor: ", "正在切换 DNS: ") + preset.GetName(Lang) + "...", false);
+                _progressRatio = 0.35f;
+                ThreadPool.QueueUserWorkItem(delegate
                 {
-                    DnsEngine.ApplyDnsPreset(preset, adapters, AppendLog);
+                    bool ok = false;
+                    try { ok = DnsEngine.ApplyDnsPreset(preset, adapters, AppendLog); } catch (Exception ex) { AppendLog("[ERROR] " + ex.Message); }
                     LiveDnsStatus st = DnsEngine.ReadLiveDnsStatus(_content.DnsPresets);
-                    SafeInvoke(delegate { _content.DnsStatus = st; });
-                }, T("DNS updated & flushed: ", "DNS güncellendi ve önbellek temizlendi: ", "DNS 已切换并刷新缓存：") + preset.GetName(Lang));
+                    SafeInvoke(delegate
+                    {
+                        _isBusy = false; _progressRatio = 1f;
+                        _content.DnsStatus = st;
+                        _content.Configure(_scale, Lang, _activeTab, _isAdmin, false);
+                        _statusIsSuccess = ok;
+                        _statusText = ok
+                            ? (T("DNS updated & flushed: ", "DNS güncellendi ve önbellek temizlendi: ", "DNS 已切换并刷新缓存：") + preset.GetName(Lang))
+                            : T("DNS switch reported a warning — check Console for details.", "DNS değişikliği uyarı verdi — ayrıntılar için Konsola bakın.", "DNS 切换出现警告，请打开日志查看详情。");
+                        Invalidate();
+                    });
+                });
             }
             else if (key == "feat_enable" || key == "feat_disable")
             {
@@ -1807,7 +1836,7 @@ namespace WinForge
                 foreach (TweakDefinition tw in _content.Tweaks)
                 {
                     if (!tw.RequiresAdmin || _isAdmin)
-                        tw.DesiredState = false;
+                        tw.DesiredState = tw.DefaultWindowsState;
                 }
                 _statusText = T("All accessible tweaks queued for Windows Default — click 'Apply Changes' to revert.",
                     "Tüm ayarlar Windows varsayılanına geri alınmak üzere işaretlendi — 'Uygula' ile onaylayın.",
@@ -2192,8 +2221,18 @@ namespace WinForge
             else if (key == "quick_restore")
             {
                 SwitchTab(4);
-                if (!_cfg.DemoMode && _isAdmin && !_isBusy && _content.Repairs.Count > 0)
+                if (!_cfg.DemoMode && !_isAdmin)
+                {
+                    _statusText = T("Creating a System Restore Point requires Administrator rights — click 'Admin ↗' in the top bar.",
+                        "Sistem Geri Yükleme Noktası oluşturmak Yönetici izni gerektirir — üstteki 'Yönetici ↗' butonuna tıklayın.",
+                        "创建系统还原点需要管理员权限 — 请点击右上角「管理员 ↗」提权后再操作。");
+                    _statusIsSuccess = false;
+                    Invalidate();
+                }
+                else if (!_cfg.DemoMode && _isAdmin && !_isBusy && _content.Repairs.Count > 0)
+                {
                     OnContentAction("repair_run", _content.Repairs[0]);
+                }
             }
             else if (key == "app_install") InstallSelectedAppsAsync();
             else if (key == "app_upgrade_all")

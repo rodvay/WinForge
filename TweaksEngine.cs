@@ -29,6 +29,7 @@ namespace WinForge
         public bool InRecommendedPreset;
         public bool InLaptopPreset;
         public bool NeedsExplorerRestart;
+        public bool DefaultWindowsState;
 
         public Func<bool> CheckApplied;
         public Func<bool> ApplyAction;
@@ -364,7 +365,12 @@ namespace WinForge
                 "Oyunlarda art arda 5 kez Shift'e basınca çıkan Yapışkan Tuşlar uyarısını kapatır.",
                 "关闭连按 5 次 Shift 弹出的粘滞键提示窗口，避免游戏中误触中断。",
                 @"HKCU\Control Panel\Accessibility\StickyKeys\Flags = 506",
-                delegate { return RegHelper.ReadString(Registry.CurrentUser, @"Control Panel\Accessibility\StickyKeys", "Flags", "510") == "506"; },
+                delegate
+                {
+                    int fl;
+                    string v = RegHelper.ReadString(Registry.CurrentUser, @"Control Panel\Accessibility\StickyKeys", "Flags", "510");
+                    return int.TryParse(v, out fl) ? ((fl & 4) == 0) : (v == "506");
+                },
                 delegate { return RegHelper.WriteString(Registry.CurrentUser, @"Control Panel\Accessibility\StickyKeys", "Flags", "506"); },
                 delegate { return RegHelper.WriteString(Registry.CurrentUser, @"Control Panel\Accessibility\StickyKeys", "Flags", "510"); }
             ));
@@ -376,7 +382,11 @@ namespace WinForge
                 "Windows açılışında sayısal klavye NumLock tuşunun açık gelmesini sağlar.",
                 "登录 Windows 时自动保持小键盘 NumLock 处于开启状态。",
                 @"HKCU\Control Panel\Keyboard\InitialKeyboardIndicators = 2",
-                delegate { return RegHelper.ReadString(Registry.CurrentUser, @"Control Panel\Keyboard", "InitialKeyboardIndicators", "0") == "2"; },
+                delegate
+                {
+                    string v = RegHelper.ReadString(Registry.CurrentUser, @"Control Panel\Keyboard", "InitialKeyboardIndicators", "0");
+                    return v == "2" || v == "2147483650";
+                },
                 delegate { return RegHelper.WriteString(Registry.CurrentUser, @"Control Panel\Keyboard", "InitialKeyboardIndicators", "2"); },
                 delegate { return RegHelper.WriteString(Registry.CurrentUser, @"Control Panel\Keyboard", "InitialKeyboardIndicators", "0"); }
             ));
@@ -623,7 +633,7 @@ namespace WinForge
 
             // ==================== 3. PERFORMANCE & POWER ====================
 
-            list.Add(Make(
+            TweakDefinition gameMode = Make(
                 "enable_game_mode", TweakCategory.Performance, false, true, false,
                 "Enable Windows Game Mode", "Windows Oyun Modunu Etkinleştir", "开启 Windows 游戏模式",
                 "Prioritizes game processes and suppresses background update interruptions while playing.",
@@ -633,7 +643,9 @@ namespace WinForge
                 delegate { return RegHelper.ReadDword(Registry.CurrentUser, @"Software\Microsoft\GameBar", "AutoGameModeEnabled", 1) == 1; },
                 delegate { return RegHelper.WriteDword(Registry.CurrentUser, @"Software\Microsoft\GameBar", "AutoGameModeEnabled", 1); },
                 delegate { return RegHelper.WriteDword(Registry.CurrentUser, @"Software\Microsoft\GameBar", "AutoGameModeEnabled", 0); }
-            ));
+            );
+            gameMode.DefaultWindowsState = true;
+            list.Add(gameMode);
 
             list.Add(Make(
                 "disable_mouse_accel", TweakCategory.Performance, false, false, false,
@@ -1083,7 +1095,7 @@ namespace WinForge
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("{");
-            sb.AppendLine("  \"winforge_version\": \"2.0.0\",");
+            sb.AppendLine("  \"winforge_version\": \"2.0.1\",");
             sb.AppendLine("  \"exported_at\": \"" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\",");
 
             sb.Append("  \"apps\": [");

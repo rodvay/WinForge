@@ -137,9 +137,8 @@ namespace WinForge
                 delegate(Action<string> log, Func<bool> cancel)
                 {
                     if (log != null) log("Creating Windows System Restore Point...");
-                    int rc = WinNative.RunProcessStreaming(
-                        "powershell.exe",
-                        "-NoProfile -ExecutionPolicy Bypass -Command \"Enable-ComputerRestore -Drive ($env:SystemDrive + '\\') -ErrorAction SilentlyContinue; Checkpoint-Computer -Description 'WinForge Restore Point' -RestorePointType 'MODIFY_SETTINGS'\"",
+                    int rc = WinNative.RunPowerShellEncoded(
+                        "Enable-ComputerRestore -Drive ($env:SystemDrive + '\\') -ErrorAction SilentlyContinue; Checkpoint-Computer -Description 'WinForge Restore Point' -RestorePointType 'MODIFY_SETTINGS'",
                         log, cancel);
                     if (log != null) log(rc == 0 ? "[DONE] System Restore Point created successfully." : "[NOTE] Restore Point creation finished (code " + rc + "). Windows limits 1 restore point per 24h by default.");
                 }));
@@ -202,24 +201,29 @@ namespace WinForge
                     WinNative.RunProcessStreaming("net.exe", "stop wuauserv", log, cancel);
                     WinNative.RunProcessStreaming("net.exe", "stop bits", log, cancel);
                     WinNative.RunProcessStreaming("net.exe", "stop cryptsvc", log, cancel);
-                    if (cancel != null && cancel()) return;
 
                     try
                     {
-                        string sd = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "SoftwareDistribution");
-                        string sdBak = sd + ".bak_" + DateTime.Now.ToString("yyyyMMddHHmmss");
-                        if (System.IO.Directory.Exists(sd))
+                        if (cancel == null || !cancel())
                         {
-                            System.IO.Directory.Move(sd, sdBak);
-                            if (log != null) log("Moved old SoftwareDistribution -> " + sdBak);
+                            string sd = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "SoftwareDistribution");
+                            string sdBak = sd + ".bak_" + DateTime.Now.ToString("yyyyMMddHHmmss");
+                            if (System.IO.Directory.Exists(sd))
+                            {
+                                System.IO.Directory.Move(sd, sdBak);
+                                if (log != null) log("Moved old SoftwareDistribution -> " + sdBak);
+                            }
                         }
                     }
                     catch (Exception ex) { if (log != null) log("[NOTE] SoftwareDistribution rename skipped: " + ex.Message); }
-
-                    if (log != null) log("Restarting Windows Update services...");
-                    WinNative.RunProcessStreaming("net.exe", "start cryptsvc", log, cancel);
-                    WinNative.RunProcessStreaming("net.exe", "start bits", log, cancel);
-                    WinNative.RunProcessStreaming("net.exe", "start wuauserv", log, cancel);
+                    finally
+                    {
+                        // ALWAYS restart stopped Windows Update services even if user clicked Stop!
+                        if (log != null) log("Restarting Windows Update services...");
+                        WinNative.RunProcessStreaming("net.exe", "start cryptsvc", log, null);
+                        WinNative.RunProcessStreaming("net.exe", "start bits", log, null);
+                        WinNative.RunProcessStreaming("net.exe", "start wuauserv", log, null);
+                    }
                     if (log != null) log("[DONE] Windows Update components reset cleanly.");
                 }));
 
@@ -233,9 +237,8 @@ namespace WinForge
                 delegate(Action<string> log, Func<bool> cancel)
                 {
                     if (log != null) log("Re-registering Microsoft.DesktopAppInstaller...");
-                    WinNative.RunProcessStreaming(
-                        "powershell.exe",
-                        "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe -ErrorAction SilentlyContinue\"",
+                    WinNative.RunPowerShellEncoded(
+                        "Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe -ErrorAction SilentlyContinue",
                         log, cancel);
                     if (cancel != null && cancel()) return;
                     if (log != null) log("Refreshing WinGet sources...");
