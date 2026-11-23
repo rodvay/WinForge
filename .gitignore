@@ -1,0 +1,13 @@
+# Compiled binaries (distributed via GitHub Releases)
+*.exe
+*.pdb
+*.ico
+
+# IDE / OS temp files
+.vs/
+bin/
+obj/
+*.user
+*.suo
+Thumbs.db
+Desktop.ini
