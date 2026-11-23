@@ -31,6 +31,23 @@ namespace WinForge
         public string GetDesc(string lang) { return Loc.T(lang, DescEn, DescTr, DescZh); }
     }
 
+    internal sealed class WinFeatureItem
+    {
+        public string Id;
+        public string NameEn;
+        public string NameTr;
+        public string NameZh;
+        public string DescEn;
+        public string DescTr;
+        public string DescZh;
+        public string FeatureHint;
+        public Action<Action<string>, Func<bool>> EnableAction;
+        public Action<Action<string>, Func<bool>> DisableAction;
+
+        public string GetName(string lang) { return Loc.T(lang, NameEn, NameTr, NameZh); }
+        public string GetDesc(string lang) { return Loc.T(lang, DescEn, DescTr, DescZh); }
+    }
+
     internal sealed class ControlPanelShortcut
     {
         public string NameEn;
@@ -173,6 +190,74 @@ namespace WinForge
                 }));
 
             list.Add(MakeRepair(
+                "wu_reset", true,
+                "Reset Windows Update Components", "Windows Update Önbelleğini Sıfırla", "重置 Windows Update 更新缓存",
+                "Stops update services, clears stuck SoftwareDistribution cache, and restarts services cleanly.",
+                "Takılan Windows Update servislerini durdurur, SoftwareDistribution önbelleğini temizler ve yeniden başlatır.",
+                "停止更新服务、清理卡死的 SoftwareDistribution 缓存目录并重新启动服务。",
+                "net stop wuauserv/bits + SoftwareDistribution reset",
+                delegate(Action<string> log, Func<bool> cancel)
+                {
+                    if (log != null) log("Stopping Windows Update services (wuauserv, bits, cryptsvc)...");
+                    WinNative.RunProcessStreaming("net.exe", "stop wuauserv", log, cancel);
+                    WinNative.RunProcessStreaming("net.exe", "stop bits", log, cancel);
+                    WinNative.RunProcessStreaming("net.exe", "stop cryptsvc", log, cancel);
+                    if (cancel != null && cancel()) return;
+
+                    try
+                    {
+                        string sd = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "SoftwareDistribution");
+                        string sdBak = sd + ".bak_" + DateTime.Now.ToString("yyyyMMddHHmmss");
+                        if (System.IO.Directory.Exists(sd))
+                        {
+                            System.IO.Directory.Move(sd, sdBak);
+                            if (log != null) log("Moved old SoftwareDistribution -> " + sdBak);
+                        }
+                    }
+                    catch (Exception ex) { if (log != null) log("[NOTE] SoftwareDistribution rename skipped: " + ex.Message); }
+
+                    if (log != null) log("Restarting Windows Update services...");
+                    WinNative.RunProcessStreaming("net.exe", "start cryptsvc", log, cancel);
+                    WinNative.RunProcessStreaming("net.exe", "start bits", log, cancel);
+                    WinNative.RunProcessStreaming("net.exe", "start wuauserv", log, cancel);
+                    if (log != null) log("[DONE] Windows Update components reset cleanly.");
+                }));
+
+            list.Add(MakeRepair(
+                "winget_repair", false,
+                "Repair / Re-Register WinGet", "WinGet Paket Yöneticisini Onar", "修复并重新注册 WinGet",
+                "Re-registers Microsoft.DesktopAppInstaller (WinGet) and refreshes official sources.",
+                "Microsoft.DesktopAppInstaller (WinGet) paketini yeniden kaydeder ve kaynakları tazeler.",
+                "重新注册微软官方应用安装程序 (WinGet) 并重置软件源缓存。",
+                "Add-AppxPackage -RegisterByFamilyName + winget source reset",
+                delegate(Action<string> log, Func<bool> cancel)
+                {
+                    if (log != null) log("Re-registering Microsoft.DesktopAppInstaller...");
+                    WinNative.RunProcessStreaming(
+                        "powershell.exe",
+                        "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe -ErrorAction SilentlyContinue\"",
+                        log, cancel);
+                    if (cancel != null && cancel()) return;
+                    if (log != null) log("Refreshing WinGet sources...");
+                    WinNative.RunProcessStreaming("winget.exe", "source update --accept-source-agreements", log, cancel);
+                    if (log != null) log("[DONE] WinGet repair complete.");
+                }));
+
+            list.Add(MakeRepair(
+                "ntp_sync", true,
+                "Sync System Clock (NTP)", "Sistem Saatini Eşitle (NTP)", "强制同步网络标准时间 (NTP)",
+                "Starts Windows Time service and forces an immediate NTP clock resync.",
+                "Windows Saat servisini başlatıp sistem saatini internet sunucusuyla eşitler.",
+                "启动 Windows 时间服务并立即向 NTP 服务器同步精确时间。",
+                "net start w32time + w32tm /resync /force",
+                delegate(Action<string> log, Func<bool> cancel)
+                {
+                    WinNative.RunProcessStreaming("net.exe", "start w32time", log, cancel);
+                    WinNative.RunProcessStreaming("w32tm.exe", "/resync /force", log, cancel);
+                    if (log != null) log("[DONE] NTP time resync requested.");
+                }));
+
+            list.Add(MakeRepair(
                 "restart_explorer", false,
                 "Restart Windows Explorer", "Windows Gezgini'ni Yeniden Başlat", "重启 Windows 资源管理器",
                 "Cleanly restarts taskbar & desktop shell to apply UI changes immediately.",
@@ -213,7 +298,110 @@ namespace WinForge
             list.Add(new ControlPanelShortcut("Windows Services", "Hizmetler", "系统服务", "mmc.exe", "services.msc"));
             list.Add(new ControlPanelShortcut("Disk Management", "Disk Yönetimi", "磁盘管理", "mmc.exe", "diskmgmt.msc"));
             list.Add(new ControlPanelShortcut("Startup Apps", "Başlangıç Uygulamaları", "开机启动项", "ms-settings:startupapps", ""));
+            list.Add(new ControlPanelShortcut("Windows Firewall", "Güvenlik Duvarı", "防火墙设置", "control.exe", "firewall.cpl"));
+            list.Add(new ControlPanelShortcut("Computer Mgmt", "Bilgisayar Yönetimi", "计算机管理", "mmc.exe", "compmgmt.msc"));
+            list.Add(new ControlPanelShortcut("Mouse Properties", "Fare Ayarları", "鼠标属性", "control.exe", "main.cpl"));
+            list.Add(new ControlPanelShortcut("Time & Date", "Tarih ve Saat", "日期和时间", "control.exe", "timedate.cpl"));
+            list.Add(new ControlPanelShortcut("System Restore", "Sistem Geri Yükleme", "系统还原界面", "rstrui.exe", ""));
             return list;
+        }
+
+        public static List<WinFeatureItem> BuildWindowsFeatures()
+        {
+            List<WinFeatureItem> list = new List<WinFeatureItem>();
+
+            list.Add(MakeFeature(
+                "feat_wsl",
+                "WSL (Windows Subsystem for Linux)", "WSL (Linux Alt Sistemi)", "WSL Linux 子系统",
+                "Enables WSL & Virtual Machine Platform cleanly (reboot required).",
+                "WSL ve Sanal Makine Platformunu resmi DISM ile açar (yeniden başlatma gerekir).",
+                "通过官方 DISM 启用 WSL 与虚拟机平台组件（需重启生效）。",
+                "DISM: Microsoft-Windows-Subsystem-Linux + VirtualMachinePlatform",
+                delegate(Action<string> log, Func<bool> cancel)
+                {
+                    WinNative.RunProcessStreaming("DISM.exe", "/Online /Enable-Feature /FeatureName:Microsoft-Windows-Subsystem-Linux /All /NoRestart", log, cancel);
+                    if (cancel != null && cancel()) return;
+                    WinNative.RunProcessStreaming("DISM.exe", "/Online /Enable-Feature /FeatureName:VirtualMachinePlatform /All /NoRestart", log, cancel);
+                },
+                delegate(Action<string> log, Func<bool> cancel)
+                {
+                    WinNative.RunProcessStreaming("DISM.exe", "/Online /Disable-Feature /FeatureName:Microsoft-Windows-Subsystem-Linux /NoRestart", log, cancel);
+                }));
+
+            list.Add(MakeFeature(
+                "feat_hyperv",
+                "Hyper-V Virtualization", "Hyper-V Sanallaştırma", "Hyper-V 虚拟机平台",
+                "Enables Microsoft Hyper-V hypervisor & management tools (Win Pro/Ent).",
+                "Microsoft Hyper-V sanallaştırma altyapısını açar/kapatır (Win Pro/Ent).",
+                "启用或关闭微软原生 Hyper-V 虚拟化平台（需专业版/企业版）。",
+                "DISM: Microsoft-Hyper-V-All",
+                delegate(Action<string> log, Func<bool> cancel) { WinNative.RunProcessStreaming("DISM.exe", "/Online /Enable-Feature /FeatureName:Microsoft-Hyper-V-All /All /NoRestart", log, cancel); },
+                delegate(Action<string> log, Func<bool> cancel) { WinNative.RunProcessStreaming("DISM.exe", "/Online /Disable-Feature /FeatureName:Microsoft-Hyper-V-All /NoRestart", log, cancel); }));
+
+            list.Add(MakeFeature(
+                "feat_sandbox",
+                "Windows Sandbox", "Windows Sandbox (Korumalı Alan)", "Windows 沙盒 (Sandbox)",
+                "Lightweight disposable Windows desktop for safely testing untrusted files (Win Pro/Ent).",
+                "Şüpheli dosyaları güvenle test etmek için tek kullanımlık izole Windows ortamı açar.",
+                "启用一次性轻量隔离桌面环境，安全测试未知软件（需专业版/企业版）。",
+                "DISM: Containers-DisposableClientForVM",
+                delegate(Action<string> log, Func<bool> cancel) { WinNative.RunProcessStreaming("DISM.exe", "/Online /Enable-Feature /FeatureName:Containers-DisposableClientForVM /All /NoRestart", log, cancel); },
+                delegate(Action<string> log, Func<bool> cancel) { WinNative.RunProcessStreaming("DISM.exe", "/Online /Disable-Feature /FeatureName:Containers-DisposableClientForVM /NoRestart", log, cancel); }));
+
+            list.Add(MakeFeature(
+                "feat_netfx3",
+                ".NET Framework 3.5 (2.0 & 3.0)", ".NET Framework 3.5 (2.0 ve 3.0)", ".NET Framework 3.5 运行组件",
+                "Installs legacy .NET 2.0/3.0/3.5 runtime required by classic apps & games.",
+                "Klasik yazılım ve oyunların ihtiyaç duyduğu .NET 2.0/3.0/3.5 bileşenini kurar.",
+                "安装经典老软件与游戏所需的 .NET 2.0/3.0/3.5 运行环境。",
+                "DISM: NetFx3",
+                delegate(Action<string> log, Func<bool> cancel) { WinNative.RunProcessStreaming("DISM.exe", "/Online /Enable-Feature /FeatureName:NetFx3 /All /NoRestart", log, cancel); },
+                delegate(Action<string> log, Func<bool> cancel) { WinNative.RunProcessStreaming("DISM.exe", "/Online /Disable-Feature /FeatureName:NetFx3 /NoRestart", log, cancel); }));
+
+            list.Add(MakeFeature(
+                "feat_nfs",
+                "NFS Network File Client", "NFS Ağ Dosya İstemcisi", "NFS 网络文件系统客户端",
+                "Enables native mounting of Linux / NAS NFS network shares in Windows.",
+                "Windows'ta Linux ve NAS cihazlarındaki NFS paylaşımlarını doğrudan bağlamayı açar.",
+                "允许 Windows 原生挂载 Linux / NAS 设备的 NFS 网络共享目录。",
+                "DISM: ServicesForNFS-ClientOnly",
+                delegate(Action<string> log, Func<bool> cancel) { WinNative.RunProcessStreaming("DISM.exe", "/Online /Enable-Feature /FeatureName:ServicesForNFS-ClientOnly /All /NoRestart", log, cancel); },
+                delegate(Action<string> log, Func<bool> cancel) { WinNative.RunProcessStreaming("DISM.exe", "/Online /Disable-Feature /FeatureName:ServicesForNFS-ClientOnly /NoRestart", log, cancel); }));
+
+            list.Add(MakeFeature(
+                "feat_openssh",
+                "OpenSSH Server", "OpenSSH Sunucusu", "OpenSSH 服务端",
+                "Installs Microsoft's native OpenSSH Server capability for remote SSH access.",
+                "Uzaktan SSH erişimi için resmi Microsoft OpenSSH Sunucu bileşenini kurar/kaldırır.",
+                "安装微软官方 OpenSSH 服务端，支持远程 SSH 登录本机。",
+                "DISM Capability: OpenSSH.Server~~~~0.0.1.0",
+                delegate(Action<string> log, Func<bool> cancel) { WinNative.RunProcessStreaming("DISM.exe", "/Online /Add-Capability /CapabilityName:OpenSSH.Server~~~~0.0.1.0", log, cancel); },
+                delegate(Action<string> log, Func<bool> cancel) { WinNative.RunProcessStreaming("DISM.exe", "/Online /Remove-Capability /CapabilityName:OpenSSH.Server~~~~0.0.1.0", log, cancel); }));
+
+            list.Add(MakeFeature(
+                "feat_f8boot",
+                "Legacy F8 Boot Recovery Menu", "Klasik F8 Kurtarma Önyükleme Menüsü", "传统 F8 开机高级恢复菜单",
+                "Restores the classic F8 Safe Mode boot menu during PC startup (revert restores Standard).",
+                "Bilgisayar açılırken F8 tuşuyla Güvenli Mod menüsüne erişimi açar (geri alınca Standart olur).",
+                "恢复经典的开机按 F8 进入安全模式菜单（禁用即可还原现代默认引导）。",
+                "bcdedit /set {default} bootmenupolicy legacy | standard",
+                delegate(Action<string> log, Func<bool> cancel) { WinNative.RunProcessStreaming("bcdedit.exe", "/set {default} bootmenupolicy legacy", log, cancel); },
+                delegate(Action<string> log, Func<bool> cancel) { WinNative.RunProcessStreaming("bcdedit.exe", "/set {default} bootmenupolicy standard", log, cancel); }));
+
+            return list;
+        }
+
+        private static WinFeatureItem MakeFeature(
+            string id, string nEn, string nTr, string nZh,
+            string dEn, string dTr, string dZh, string hint,
+            Action<Action<string>, Func<bool>> enableAct,
+            Action<Action<string>, Func<bool>> disableAct)
+        {
+            WinFeatureItem f = new WinFeatureItem();
+            f.Id = id; f.NameEn = nEn; f.NameTr = nTr; f.NameZh = nZh;
+            f.DescEn = dEn; f.DescTr = dTr; f.DescZh = dZh;
+            f.FeatureHint = hint; f.EnableAction = enableAct; f.DisableAction = disableAct;
+            return f;
         }
 
         public static bool LaunchShortcut(ControlPanelShortcut s)

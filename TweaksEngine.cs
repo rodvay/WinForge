@@ -27,6 +27,7 @@ namespace WinForge
         public string TargetHint;
         public bool RequiresAdmin;
         public bool InRecommendedPreset;
+        public bool InLaptopPreset;
         public bool NeedsExplorerRestart;
 
         public Func<bool> CheckApplied;
@@ -177,6 +178,18 @@ namespace WinForge
         private const string ContentDeliv = @"Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager";
         private const string HighPerfGuid = "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c";
         private const string BalancedGuid = "381b4222-f694-41f0-9685-ff5bb260df2e";
+        private const string UltPerfTemplateGuid = "e9a42b02-d5df-448d-aa00-03f14749eb61";
+        private const string EdgePolicyKey = @"SOFTWARE\Policies\Microsoft\Edge";
+        private const string WinForgeMarkerKey = @"SOFTWARE\WinForge";
+
+        // Curated safe background/telemetry/legacy Windows services verified on Win10/11
+        // Never touches Networking, Audio, Defender, Store, Bluetooth, Print, or Update services.
+        internal static readonly string[] SafeManualServices = new string[]
+        {
+            "MapsBroker", "RetailDemo", "WMPNetworkSvc", "WerSvc", "SysMain",
+            "lfsvc", "WalletService", "wisvc", "XblAuthManager", "XblGameSave",
+            "XboxNetApiSvc", "XboxGipSvc", "TrkWks", "WpcMonSvc", "TroubleshootingSvc", "PcaSvc"
+        };
 
         public static List<TweakDefinition> BuildCatalog()
         {
@@ -344,6 +357,87 @@ namespace WinForge
                 }
             ));
 
+            list.Add(Make(
+                "disable_sticky_keys", TweakCategory.UiExplorer, false, true, false,
+                "Disable Sticky Keys Shortcut Prompt", "Yapışkan Tuşlar Uyarısını Kapat (5x Shift)", "关闭粘滞键弹窗提示（连按 5 次 Shift）",
+                "Stops the loud Sticky Keys popup when pressing Shift 5 times in games.",
+                "Oyunlarda art arda 5 kez Shift'e basınca çıkan Yapışkan Tuşlar uyarısını kapatır.",
+                "关闭连按 5 次 Shift 弹出的粘滞键提示窗口，避免游戏中误触中断。",
+                @"HKCU\Control Panel\Accessibility\StickyKeys\Flags = 506",
+                delegate { return RegHelper.ReadString(Registry.CurrentUser, @"Control Panel\Accessibility\StickyKeys", "Flags", "510") == "506"; },
+                delegate { return RegHelper.WriteString(Registry.CurrentUser, @"Control Panel\Accessibility\StickyKeys", "Flags", "506"); },
+                delegate { return RegHelper.WriteString(Registry.CurrentUser, @"Control Panel\Accessibility\StickyKeys", "Flags", "510"); }
+            ));
+
+            list.Add(Make(
+                "numlock_startup", TweakCategory.UiExplorer, false, false, false,
+                "Enable NumLock on Startup", "Açılışta NumLock Otomatik Açık Olsun", "开机自动开启 NumLock 数字小键盘",
+                "Automatically keeps NumLock enabled when logging into Windows.",
+                "Windows açılışında sayısal klavye NumLock tuşunun açık gelmesini sağlar.",
+                "登录 Windows 时自动保持小键盘 NumLock 处于开启状态。",
+                @"HKCU\Control Panel\Keyboard\InitialKeyboardIndicators = 2",
+                delegate { return RegHelper.ReadString(Registry.CurrentUser, @"Control Panel\Keyboard", "InitialKeyboardIndicators", "0") == "2"; },
+                delegate { return RegHelper.WriteString(Registry.CurrentUser, @"Control Panel\Keyboard", "InitialKeyboardIndicators", "2"); },
+                delegate { return RegHelper.WriteString(Registry.CurrentUser, @"Control Panel\Keyboard", "InitialKeyboardIndicators", "0"); }
+            ));
+
+            list.Add(Make(
+                "always_show_scrollbars", TweakCategory.UiExplorer, false, false, false,
+                "Always Show Windows Scrollbars", "Kaydırma Çubuklarını Her Zaman Göster", "始终显示 Windows 滚动条",
+                "Prevents Windows 11 Settings and UWP apps from auto-hiding scrollbars.",
+                "Windows 11 Ayarlar ve modern uygulamalarda kaydırma çubuklarının gizlenmesini önler.",
+                "禁止 Windows 11 设置与现代应用自动隐藏细滚动条。",
+                @"HKCU\Control Panel\Accessibility\DynamicScrollbars = 0",
+                delegate { return RegHelper.ReadDword(Registry.CurrentUser, @"Control Panel\Accessibility", "DynamicScrollbars", 1) == 0; },
+                delegate { return RegHelper.WriteDword(Registry.CurrentUser, @"Control Panel\Accessibility", "DynamicScrollbars", 0); },
+                delegate { return RegHelper.WriteDword(Registry.CurrentUser, @"Control Panel\Accessibility", "DynamicScrollbars", 1); }
+            ));
+
+            list.Add(Make(
+                "hide_task_view", TweakCategory.UiExplorer, false, false, false,
+                "Hide Task View Button on Taskbar", "Görev Çubuğundan Görev Görünümünü Gizle", "隐藏任务栏「任务视图」按钮",
+                "Declutters the taskbar by hiding the Task View icon (Win+Tab still works).",
+                "Görev çubuğunu sadeleştirir (Win+Tab kısayolu çalışmaya devam eder).",
+                "精简任务栏图标布局（Win+Tab 快捷键依然正常可用）。",
+                @"HKCU\...\Explorer\Advanced\ShowTaskViewButton = 0",
+                delegate { return RegHelper.ReadDword(Registry.CurrentUser, ExplorerAdv, "ShowTaskViewButton", 1) == 0; },
+                delegate { return RegHelper.WriteDword(Registry.CurrentUser, ExplorerAdv, "ShowTaskViewButton", 0); },
+                delegate { return RegHelper.WriteDword(Registry.CurrentUser, ExplorerAdv, "ShowTaskViewButton", 1); }
+            ));
+
+            list.Add(Make(
+                "hide_settings_home", TweakCategory.UiExplorer, false, false, false,
+                "Hide Windows Settings 'Home' Page", "Windows Ayarlar 'Giriş' Sayfasını Gizle", "隐藏系统设置「主页」推荐页",
+                "Skips the Microsoft 365/OneDrive promo Home page and opens Settings directly on System.",
+                "Ayarlar açıldığında Microsoft 365 önerileri yerine doğrudan Sistem sekmesini açar.",
+                "打开系统设置时跳过广告推广主页，直接进入「系统」设置项。",
+                @"HKCU\...\Policies\Explorer\SettingsPageVisibility = hide:home",
+                delegate
+                {
+                    string v = RegHelper.ReadString(Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "SettingsPageVisibility", "");
+                    return v.IndexOf("hide:home", StringComparison.OrdinalIgnoreCase) >= 0;
+                },
+                delegate { return RegHelper.WriteString(Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "SettingsPageVisibility", "hide:home"); },
+                delegate { return RegHelper.DeleteValueSafe(Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "SettingsPageVisibility"); }
+            ));
+
+            list.Add(Make(
+                "visual_fx_perf", TweakCategory.UiExplorer, false, false, true,
+                "Visual Effects: Best Performance (Keep Smooth Fonts)", "Görsel Efektler: En İyi Performans (Net Yazı Korunur)", "视觉效果：最佳性能（保留字体平滑）",
+                "Disables heavy window animations and shadows while keeping crisp ClearType fonts.",
+                "Ağır pencere animasyonlarını kapatırken ClearType yazı netliğini korur.",
+                "关闭多余窗口动画与阴影以加快响应，同时保留清晰的字体边缘平滑。",
+                @"HKCU\...\VisualEffects\VisualFXSetting = 2",
+                delegate { return RegHelper.ReadDword(Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects", "VisualFXSetting", 0) == 2; },
+                delegate
+                {
+                    bool a = RegHelper.WriteDword(Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects", "VisualFXSetting", 2);
+                    bool b = RegHelper.WriteString(Registry.CurrentUser, @"Control Panel\Desktop", "FontSmoothing", "2");
+                    return a && b;
+                },
+                delegate { return RegHelper.WriteDword(Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects", "VisualFXSetting", 0); }
+            ));
+
             // ==================== 2. PRIVACY & TELEMETRY ====================
 
             list.Add(Make(
@@ -428,6 +522,105 @@ namespace WinForge
                 delegate { return RegHelper.DeleteValueSafe(Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\CloudContent", "DisableWindowsConsumerFeatures"); }
             ));
 
+            list.Add(Make(
+                "disable_widgets", TweakCategory.Privacy, true, true, true,
+                "Disable Windows Widgets & News Feed", "Windows Araç Takımlarını (Widgets) Kapat", "关闭 Windows 小组件与资讯流",
+                "Disables the taskbar Widgets panel and MSN news feed background process.",
+                "Görev çubuğu araç takımlarını ve arka plandaki MSN haber akışını kapatır.",
+                "禁用任务栏小组件面板与后台 MSN 资讯推送进程，节省内存。",
+                @"HKLM\SOFTWARE\Policies\Microsoft\Dsh\AllowNewsAndInterests = 0",
+                delegate { return RegHelper.ReadDword(Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Dsh", "AllowNewsAndInterests", 1) == 0; },
+                delegate { return RegHelper.WriteDword(Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Dsh", "AllowNewsAndInterests", 0); },
+                delegate { return RegHelper.DeleteValueSafe(Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Dsh", "AllowNewsAndInterests"); }
+            ));
+
+            list.Add(Make(
+                "disable_location", TweakCategory.Privacy, true, true, false,
+                "Disable System Location Tracking", "Sistem Konum Takibini Kapat", "禁用系统定位追踪服务",
+                "Denies global Windows location tracking consent (reversible anytime).",
+                "Genel Windows konum erişimi iznini kapatır (istediğiniz zaman geri açılır).",
+                "关闭 Windows 全局定位追踪权限，提升隐私保护（可随时恢复）。",
+                @"HKLM\...\ConsentStore\location\Value = Deny",
+                delegate { return RegHelper.ReadString(Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location", "Value", "Allow").Equals("Deny", StringComparison.OrdinalIgnoreCase); },
+                delegate { return RegHelper.WriteString(Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location", "Value", "Deny"); },
+                delegate { return RegHelper.WriteString(Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location", "Value", "Allow"); }
+            ));
+
+            list.Add(Make(
+                "disable_delivery_opt", TweakCategory.Privacy, true, true, false,
+                "Disable Delivery Optimization (P2P Updates)", "Teslim İyileştirme (P2P Güncelleme Paylaşımı) Kapat", "关闭传递优化（禁止 P2P 上传更新）",
+                "Stops Windows Update from using your upload bandwidth to share updates with other PCs.",
+                "Windows Update'in internet yükleme hızınızı diğer PC'lere güncelleme dağıtmak için kullanmasını engeller.",
+                "阻止 Windows 更新占用你的上行带宽向局域网或互联网其他电脑分发更新。",
+                @"HKLM\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization\DODownloadMode = 0",
+                delegate { return RegHelper.ReadDword(Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization", "DODownloadMode", -1) == 0; },
+                delegate { return RegHelper.WriteDword(Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization", "DODownloadMode", 0); },
+                delegate { return RegHelper.DeleteValueSafe(Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization", "DODownloadMode"); }
+            ));
+
+            list.Add(Make(
+                "disable_windows_ai", TweakCategory.Privacy, true, false, false,
+                "Disable Windows Copilot & AI Recall Policy", "Windows Copilot ve AI Recall Politikası Kapat", "禁用 Windows Copilot 与 AI 回顾策略",
+                "Applies official Microsoft Group Policy to turn off Windows Copilot & Recall snapshots.",
+                "Resmi Grup İlkesi ile Windows Copilot ve AI Recall ekran analizini devre dışı bırakır.",
+                "通过微软官方组策略禁用 Windows Copilot 与 AI Recall 屏幕回顾分析功能。",
+                @"HKLM\...\WindowsCopilot\TurnOffWindowsCopilot = 1 & WindowsAI",
+                delegate { return RegHelper.ReadDword(Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot", "TurnOffWindowsCopilot", 0) == 1; },
+                delegate
+                {
+                    bool a = RegHelper.WriteDword(Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot", "TurnOffWindowsCopilot", 1);
+                    bool b = RegHelper.WriteDword(Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\WindowsAI", "DisableAIDataAnalysis", 1);
+                    return a && b;
+                },
+                delegate
+                {
+                    bool a = RegHelper.DeleteValueSafe(Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot", "TurnOffWindowsCopilot");
+                    bool b = RegHelper.DeleteValueSafe(Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\WindowsAI", "DisableAIDataAnalysis");
+                    return a && b;
+                }
+            ));
+
+            list.Add(Make(
+                "edge_debloat_policy", TweakCategory.Privacy, true, true, false,
+                "Microsoft Edge Debloat Policy (Non-Destructive)", "Microsoft Edge Sadeleştirme Politikası", "精简 Microsoft Edge 后台与侧边栏策略",
+                "Disables Edge Startup Boost, Background Mode, Sidebar & Shopping Assistant via Policy.",
+                "Edge'i silmeden arka plan çalışmasını, hızlı başlatmayı, kenar çubuğunu ve alışveriş asistanını kapatır.",
+                "不卸载 Edge，仅通过官方策略关闭开机后台驻留、启动增强、侧边栏与购物弹窗。",
+                @"HKLM\SOFTWARE\Policies\Microsoft\Edge\*",
+                delegate { return RegHelper.ReadDword(Registry.LocalMachine, EdgePolicyKey, "StartupBoostEnabled", 1) == 0 && RegHelper.ReadDword(Registry.LocalMachine, EdgePolicyKey, "BackgroundModeEnabled", 1) == 0; },
+                delegate
+                {
+                    bool ok = true;
+                    ok &= RegHelper.WriteDword(Registry.LocalMachine, EdgePolicyKey, "BackgroundModeEnabled", 0);
+                    ok &= RegHelper.WriteDword(Registry.LocalMachine, EdgePolicyKey, "StartupBoostEnabled", 0);
+                    ok &= RegHelper.WriteDword(Registry.LocalMachine, EdgePolicyKey, "HubsSidebarEnabled", 0);
+                    ok &= RegHelper.WriteDword(Registry.LocalMachine, EdgePolicyKey, "EdgeShoppingAssistantEnabled", 0);
+                    ok &= RegHelper.WriteDword(Registry.LocalMachine, EdgePolicyKey, "HideFirstRunExperience", 1);
+                    return ok;
+                },
+                delegate
+                {
+                    RegHelper.DeleteValueSafe(Registry.LocalMachine, EdgePolicyKey, "BackgroundModeEnabled");
+                    RegHelper.DeleteValueSafe(Registry.LocalMachine, EdgePolicyKey, "StartupBoostEnabled");
+                    RegHelper.DeleteValueSafe(Registry.LocalMachine, EdgePolicyKey, "HubsSidebarEnabled");
+                    RegHelper.DeleteValueSafe(Registry.LocalMachine, EdgePolicyKey, "EdgeShoppingAssistantEnabled");
+                    RegHelper.DeleteValueSafe(Registry.LocalMachine, EdgePolicyKey, "HideFirstRunExperience");
+                    return true;
+                }
+            ));
+
+            list.Add(Make(
+                "disable_bg_apps", TweakCategory.Privacy, false, false, false,
+                "Disable UWP Background Apps", "Arka Plan UWP Uygulamalarını Kapat", "禁用 UWP 应用后台运行",
+                "Prevents idle Store apps from waking up in the background to save RAM & battery.",
+                "Kullanılmayan Mağaza uygulamalarının arka planda çalışıp RAM ve pil tüketmesini önler.",
+                "禁止微软商店 UWP 应用在后台静默运行，降低内存占用并延长续航。",
+                @"HKCU\...\BackgroundAccessApplications\GlobalUserDisabled = 1",
+                delegate { return RegHelper.ReadDword(Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications", "GlobalUserDisabled", 0) == 1; },
+                delegate { return RegHelper.WriteDword(Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications", "GlobalUserDisabled", 1); },
+                delegate { return RegHelper.WriteDword(Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications", "GlobalUserDisabled", 0); }
+            ));
+
             // ==================== 3. PERFORMANCE & POWER ====================
 
             list.Add(Make(
@@ -491,15 +684,127 @@ namespace WinForge
             ));
 
             list.Add(Make(
-                "disable_hibernation", TweakCategory.Performance, true, false, false,
-                "Disable Hibernation (Free hiberfil.sys)", "Hazırda Bekletmeyi Kapat (hiberfil.sys Temizle)", "关闭休眠并释放 hiberfil.sys 空间",
-                "Disables hibernation on desktop PCs to reclaim several GB of C: drive space.",
-                "Masaüstü PC'lerde hazırda bekletmeyi kapatıp C: diskinde GB'larca yer açar.",
-                "适合台式机：关闭系统休眠功能，可立即释放数 GB 的 C 盘 hiberfil.sys 空间。",
+                "disable_hibernation", TweakCategory.Performance, true, true, false,
+                "Disable Hibernation (Desktop · Free hiberfil.sys)", "Hazırda Bekletmeyi Kapat (Masaüstü · hiberfil.sys)", "关闭休眠并释放 hiberfil.sys 空间（台式机）",
+                "Disables hibernation on desktop PCs to reclaim several GB of C: drive space (excluded from Laptop preset).",
+                "Masaüstü PC'lerde hazırda bekletmeyi kapatıp C: diskinde GB'larca yer açar (Dizüstü profilinde kapalı).",
+                "适合台式机：关闭系统休眠释放数 GB 的 C 盘空间（笔记本推荐配置默认不勾选）。",
                 "powercfg /h off (revert: powercfg /h on)",
                 delegate { return RegHelper.ReadDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control\Power", "HibernateEnabled", 1) == 0; },
                 delegate { return RunPowerCfg("/h off"); },
-                delegate { return RunPowerCfg("/h on"); }
+                delegate { return RunPowerCfg("/h on"); },
+                false // laptopPreset = false!
+            ));
+
+            list.Add(Make(
+                "ultimate_perf_power", TweakCategory.Performance, true, false, false,
+                "Ultimate Performance Power Plan (Desktop)", "Nihai Performans Güç Planı (Masaüstü)", "启用「卓越性能」电源方案（台式机）",
+                "Unlocks & activates Windows' hidden Ultimate Performance scheme (revert restores Balanced).",
+                "Gizli Windows Nihai Performans güç planını açıp etkinleştirir (geri alınca Dengeli olur).",
+                "解锁并激活 Windows 隐藏的「卓越性能」电源计划（还原切回默认平衡方案）。",
+                "powercfg -duplicatescheme e9a42b02-... & /setactive",
+                delegate { return IsUltimatePerformancePowerActive(); },
+                delegate { return EnableUltimatePerformancePower(); },
+                delegate { return RunPowerCfg("/setactive " + BalancedGuid); },
+                false
+            ));
+
+            list.Add(Make(
+                "services_manual", TweakCategory.Performance, true, true, false,
+                "Set Safe Non-Essential Services to Manual", "Gereksiz Windows Servislerini 'Manuel'e Al", "将非核心系统服务设为「手动」启动",
+                "Chris Titus classic: switches 16 safe idle services from Auto to Manual (auto-saves exact originals for 100% revert).",
+                "Chris Titus klasiği: 16 güvenli servisi Otomatik'ten Manuel'e alır; orijinal değerleri yedekler ve %100 geri alır.",
+                "经典安全优化：将 16 项非关键服务从自动改为手动，修改前自动保存原始状态，随时 100% 还原。",
+                @"HKLM\SYSTEM\CurrentControlSet\Services\* (Start: 2 -> 3)",
+                delegate { return RegHelper.ReadDword(Registry.LocalMachine, WinForgeMarkerKey, "ServicesManualApplied", 0) == 1; },
+                delegate { return ApplySafeServicesToManual(); },
+                delegate { return RevertSafeServicesFromBackup(); },
+                true
+            ));
+
+            list.Add(Make(
+                "enable_long_paths", TweakCategory.Performance, true, true, false,
+                "Enable NTFS Long File Paths (>260 chars)", "NTFS Uzun Dosya Yollarını Etkinleştir (>260)", "启用 NTFS 长文件路径支持（突破 260 字符）",
+                "Removes the legacy 260-character MAX_PATH limit for Git, Node.js, and deep project trees.",
+                "Git, Node.js ve derin proje klasörleri için eski 260 karakter yol sınırını kaldırır.",
+                "解除传统 260 字符路径长度限制，避免 Git / Node.js 与嵌套目录报错。",
+                @"HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled = 1",
+                delegate { return RegHelper.ReadDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control\FileSystem", "LongPathsEnabled", 0) == 1; },
+                delegate { return RegHelper.WriteDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control\FileSystem", "LongPathsEnabled", 1); },
+                delegate { return RegHelper.WriteDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control\FileSystem", "LongPathsEnabled", 0); },
+                true
+            ));
+
+            list.Add(Make(
+                "verbose_boot_bsod", TweakCategory.Performance, true, false, false,
+                "Verbose Boot / Logon & Detailed BSoD Info", "Ayrıntılı Açılış / Oturum ve BSoD Bilgisi", "开启详细开机状态与蓝屏诊断参数",
+                "Shows detailed service status during boot/shutdown and hex diagnostics on crash screens.",
+                "Açılış/kapanışta hangi servisin çalıştığını ve hata ekranında ayrıntılı kodları gösterir.",
+                "在开机与关机时显示详细服务加载状态，并在蓝屏界面展示完整故障参数。",
+                @"HKLM\...\Policies\System\VerboseStatus = 1 & CrashControl\DisplayParameters = 1",
+                delegate { return RegHelper.ReadDword(Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System", "VerboseStatus", 0) == 1; },
+                delegate
+                {
+                    bool a = RegHelper.WriteDword(Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System", "VerboseStatus", 1);
+                    bool b = RegHelper.WriteDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control\CrashControl", "DisplayParameters", 1);
+                    return a && b;
+                },
+                delegate
+                {
+                    bool a = RegHelper.WriteDword(Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System", "VerboseStatus", 0);
+                    bool b = RegHelper.WriteDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control\CrashControl", "DisplayParameters", 0);
+                    return a && b;
+                },
+                false
+            ));
+
+            list.Add(Make(
+                "prefer_ipv4", TweakCategory.Performance, true, false, false,
+                "Prefer IPv4 Over IPv6 (Keep Loopback Safe)", "IPv4'ü IPv6'ya Tercih Et (Güvenli RFC)", "优先使用 IPv4（保留 IPv6 本地环回）",
+                "Uses Microsoft's official DisabledComponents = 0x20 to prefer IPv4 without breaking Windows services.",
+                "Microsoft'un resmi 0x20 değerini kullanarak Windows servislerini bozmadan IPv4'ü önceliklendirir.",
+                "采用微软官方 0x20 参数优先走 IPv4 路由，同时保留系统本地环回，不破坏任何服务。",
+                @"HKLM\...\Services\Tcpip6\Parameters\DisabledComponents = 0x20",
+                delegate { return RegHelper.ReadDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters", "DisabledComponents", 0) == 0x20; },
+                delegate { return RegHelper.WriteDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters", "DisabledComponents", 0x20); },
+                delegate { return RegHelper.DeleteValueSafe(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters", "DisabledComponents"); },
+                false
+            ));
+
+            list.Add(Make(
+                "disable_teredo", TweakCategory.Performance, true, false, false,
+                "Disable Teredo IPv6 Tunneling", "Teredo IPv6 Tünellemeyi Kapat", "禁用 Teredo IPv6 隧道",
+                "Disables legacy Teredo IPv6 transition tunneling via official Group Policy (reversible).",
+                "Eski Teredo IPv6 geçiş tünellemesini resmi Grup İlkesi ile kapatır.",
+                "通过官方组策略禁用老旧 Teredo 隧道过渡协议（如需 Xbox 联机可随时一键还原）。",
+                @"HKLM\SOFTWARE\Policies\Microsoft\Windows\TCPIP\v6Transition\Teredo_State = Disabled",
+                delegate { return RegHelper.ReadString(Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\TCPIP\v6Transition", "Teredo_State", "").Equals("Disabled", StringComparison.OrdinalIgnoreCase); },
+                delegate
+                {
+                    bool a = RegHelper.WriteString(Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\TCPIP\v6Transition", "Teredo_State", "Disabled");
+                    WinNative.RunProcessStreaming("netsh.exe", "interface teredo set state disabled", null, null);
+                    return a;
+                },
+                delegate
+                {
+                    bool a = RegHelper.DeleteValueSafe(Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\TCPIP\v6Transition", "Teredo_State");
+                    WinNative.RunProcessStreaming("netsh.exe", "interface teredo set state default", null, null);
+                    return a;
+                },
+                false
+            ));
+
+            list.Add(Make(
+                "utc_hardware_clock", TweakCategory.Performance, true, false, false,
+                "Use UTC Hardware Clock (Linux Dual-Boot)", "UTC Donanım Saati Kullan (Linux Dual-Boot)", "使用 UTC 硬件时钟（解决双系统时间错乱）",
+                "Fixes the 3-hour / timezone clock jump when dual-booting Windows alongside Linux or macOS.",
+                "Windows ve Linux/macOS çift önyüklemede (dual-boot) yaşanan saat kaymasını kalıcı olarak çözer.",
+                "修复 Windows 与 Linux / macOS 双系统切换后系统时间偏差问题。",
+                @"HKLM\...\Control\TimeZoneInformation\RealTimeIsUniversal = 1",
+                delegate { return RegHelper.ReadDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control\TimeZoneInformation", "RealTimeIsUniversal", 0) == 1; },
+                delegate { return RegHelper.WriteDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control\TimeZoneInformation", "RealTimeIsUniversal", 1); },
+                delegate { return RegHelper.DeleteValueSafe(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control\TimeZoneInformation", "RealTimeIsUniversal"); },
+                false
             ));
 
             return list;
@@ -510,9 +815,18 @@ namespace WinForge
             string nEn, string nTr, string nZh, string dEn, string dTr, string dZh, string hint,
             Func<bool> check, Func<bool> apply, Func<bool> revert)
         {
+            return Make(id, cat, requiresAdmin, recommended, needsExplorerRestart, nEn, nTr, nZh, dEn, dTr, dZh, hint, check, apply, revert, recommended);
+        }
+
+        private static TweakDefinition Make(
+            string id, TweakCategory cat, bool requiresAdmin, bool desktopPreset, bool needsExplorerRestart,
+            string nEn, string nTr, string nZh, string dEn, string dTr, string dZh, string hint,
+            Func<bool> check, Func<bool> apply, Func<bool> revert, bool laptopPreset)
+        {
             TweakDefinition t = new TweakDefinition();
             t.Id = id; t.Category = cat; t.RequiresAdmin = requiresAdmin;
-            t.InRecommendedPreset = recommended; t.NeedsExplorerRestart = needsExplorerRestart;
+            t.InRecommendedPreset = desktopPreset; t.InLaptopPreset = laptopPreset;
+            t.NeedsExplorerRestart = needsExplorerRestart;
             t.NameEn = nEn; t.NameTr = nTr; t.NameZh = nZh;
             t.DescEn = dEn; t.DescTr = dTr; t.DescZh = dZh;
             t.TargetHint = hint;
@@ -634,6 +948,268 @@ namespace WinForge
             {
                 return false;
             }
+        }
+
+        private static string FindUltimatePerformanceGuid()
+        {
+            try
+            {
+                StringBuilder sb = new StringBuilder();
+                if (WinNative.RunProcessStreaming("powercfg.exe", "/list", delegate(string line) { sb.AppendLine(line); }, null) != 0)
+                    return "";
+                foreach (string raw in sb.ToString().Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (raw.IndexOf("Ultimate Performance", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        raw.IndexOf("Nihai Performans", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        raw.IndexOf("卓越性能", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        int col = raw.IndexOf(':');
+                        if (col > 0)
+                        {
+                            string rest = raw.Substring(col + 1).Trim();
+                            int sp = rest.IndexOf(' ');
+                            if (sp >= 32) return rest.Substring(0, sp).Trim();
+                        }
+                    }
+                }
+            }
+            catch { }
+            return "";
+        }
+
+        private static bool IsUltimatePerformancePowerActive()
+        {
+            try
+            {
+                StringBuilder sb = new StringBuilder();
+                if (WinNative.RunProcessStreaming("powercfg.exe", "/getactivescheme", delegate(string line) { sb.AppendLine(line); }, null) != 0)
+                    return false;
+                string txt = sb.ToString();
+                return txt.IndexOf("Ultimate Performance", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                       txt.IndexOf("Nihai Performans", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                       txt.IndexOf("卓越性能", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                       txt.IndexOf(UltPerfTemplateGuid, StringComparison.OrdinalIgnoreCase) >= 0;
+            }
+            catch { return false; }
+        }
+
+        private static bool EnableUltimatePerformancePower()
+        {
+            string guid = FindUltimatePerformanceGuid();
+            if (string.IsNullOrEmpty(guid))
+            {
+                RunPowerCfg("-duplicatescheme " + UltPerfTemplateGuid);
+                guid = FindUltimatePerformanceGuid();
+            }
+            if (string.IsNullOrEmpty(guid)) guid = UltPerfTemplateGuid;
+            return RunPowerCfg("/setactive " + guid);
+        }
+
+        private static string GetServicesBackupFile()
+        {
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            return Path.Combine(Path.Combine(Path.Combine(appData, "WinForge"), "backups"), "services-original.ini");
+        }
+
+        private static bool ApplySafeServicesToManual()
+        {
+            string bFile = GetServicesBackupFile();
+            string dir = Path.GetDirectoryName(bFile);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+            // Save original Start modes ONCE before changing anything (never overwrite pre-tweak originals)
+            if (!File.Exists(bFile))
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine("# WinForge Original Service Start Values — " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                foreach (string svc in SafeManualServices)
+                {
+                    int cur = RegHelper.ReadDword(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Services\" + svc, "Start", -1);
+                    if (cur >= 0) sb.AppendLine(svc + "=" + cur);
+                }
+                File.WriteAllText(bFile, sb.ToString(), Encoding.UTF8);
+            }
+
+            foreach (string svc in SafeManualServices)
+            {
+                string keyPath = @"SYSTEM\CurrentControlSet\Services\" + svc;
+                int cur = RegHelper.ReadDword(Registry.LocalMachine, keyPath, "Start", -1);
+                // Only switch Automatic (2) -> Manual (3); never re-enable Disabled (4) services
+                if (cur == 2)
+                    RegHelper.WriteDword(Registry.LocalMachine, keyPath, "Start", 3);
+            }
+            return RegHelper.WriteDword(Registry.LocalMachine, WinForgeMarkerKey, "ServicesManualApplied", 1);
+        }
+
+        private static bool RevertSafeServicesFromBackup()
+        {
+            string bFile = GetServicesBackupFile();
+            if (File.Exists(bFile))
+            {
+                foreach (string raw in File.ReadAllLines(bFile, Encoding.UTF8))
+                {
+                    if (string.IsNullOrEmpty(raw) || raw.StartsWith("#")) continue;
+                    int eq = raw.IndexOf('=');
+                    if (eq <= 0) continue;
+                    string svc = raw.Substring(0, eq).Trim();
+                    int orig;
+                    if (int.TryParse(raw.Substring(eq + 1).Trim(), out orig) && orig >= 0 && orig <= 4)
+                    {
+                        string keyPath = @"SYSTEM\CurrentControlSet\Services\" + svc;
+                        if (RegHelper.KeyExists(Registry.LocalMachine, keyPath))
+                            RegHelper.WriteDword(Registry.LocalMachine, keyPath, "Start", orig);
+                    }
+                }
+            }
+            else
+            {
+                string[] defaultAuto = new string[] { "MapsBroker", "SysMain", "TrkWks", "PcaSvc" };
+                foreach (string svc in defaultAuto)
+                {
+                    string keyPath = @"SYSTEM\CurrentControlSet\Services\" + svc;
+                    if (RegHelper.KeyExists(Registry.LocalMachine, keyPath))
+                        RegHelper.WriteDword(Registry.LocalMachine, keyPath, "Start", 2);
+                }
+            }
+            RegHelper.DeleteValueSafe(Registry.LocalMachine, WinForgeMarkerKey, "ServicesManualApplied");
+            return true;
+        }
+    }
+
+    // ==================== ZERO-DEPENDENCY JSON CONFIG EXPORT / IMPORT ====================
+    internal static class WinForgeConfigIo
+    {
+        public static string SerializeProfile(List<WingetAppItem> apps, List<TweakDefinition> tweaks)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("{");
+            sb.AppendLine("  \"winforge_version\": \"2.0.0\",");
+            sb.AppendLine("  \"exported_at\": \"" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\",");
+
+            sb.Append("  \"apps\": [");
+            bool first = true;
+            if (apps != null)
+            {
+                foreach (WingetAppItem a in apps)
+                {
+                    if (!a.Selected) continue;
+                    if (!first) sb.Append(", ");
+                    sb.Append("\"" + EscapeJson(a.Id) + "\"");
+                    first = false;
+                }
+            }
+            sb.AppendLine("],");
+
+            sb.Append("  \"tweaks\": [");
+            first = true;
+            if (tweaks != null)
+            {
+                foreach (TweakDefinition t in tweaks)
+                {
+                    if (!t.DesiredState) continue;
+                    if (!first) sb.Append(", ");
+                    sb.Append("\"" + EscapeJson(t.Id) + "\"");
+                    first = false;
+                }
+            }
+            sb.AppendLine("]");
+            sb.AppendLine("}");
+            return sb.ToString();
+        }
+
+        public static void ExportProfileToFile(string path, List<WingetAppItem> apps, List<TweakDefinition> tweaks)
+        {
+            File.WriteAllText(path, SerializeProfile(apps, tweaks), Encoding.UTF8);
+        }
+
+        public static bool ImportProfileFromFile(string path, List<WingetAppItem> apps, List<TweakDefinition> tweaks, bool isAdmin, out int appsMatched, out int tweaksMatched)
+        {
+            appsMatched = 0;
+            tweaksMatched = 0;
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return false;
+            string json = File.ReadAllText(path, Encoding.UTF8);
+            return ApplySerializedProfile(json, apps, tweaks, isAdmin, out appsMatched, out tweaksMatched);
+        }
+
+        public static bool ApplySerializedProfile(string json, List<WingetAppItem> apps, List<TweakDefinition> tweaks, bool isAdmin, out int appsMatched, out int tweaksMatched)
+        {
+            appsMatched = 0;
+            tweaksMatched = 0;
+            if (string.IsNullOrEmpty(json)) return false;
+
+            HashSet<string> appIds = ParseJsonStringArray(json, "apps");
+            HashSet<string> tweakIds = ParseJsonStringArray(json, "tweaks");
+            if (appIds.Count == 0 && tweakIds.Count == 0) return false;
+
+            if (apps != null && appIds.Count > 0)
+            {
+                foreach (WingetAppItem a in apps)
+                {
+                    a.Selected = appIds.Contains(a.Id);
+                    if (a.Selected) appsMatched++;
+                }
+            }
+            if (tweaks != null && tweakIds.Count > 0)
+            {
+                foreach (TweakDefinition t in tweaks)
+                {
+                    if (t.RequiresAdmin && !isAdmin) continue;
+                    bool want = tweakIds.Contains(t.Id);
+                    t.DesiredState = want;
+                    if (want) tweaksMatched++;
+                }
+            }
+            return true;
+        }
+
+        private static string EscapeJson(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            return s.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        }
+
+        private static HashSet<string> ParseJsonStringArray(string json, string fieldName)
+        {
+            HashSet<string> set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string marker = "\"" + fieldName + "\"";
+            int idx = json.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (idx < 0) return set;
+            int open = json.IndexOf('[', idx + marker.Length);
+            if (open < 0) return set;
+            int close = json.IndexOf(']', open + 1);
+            if (close < 0) return set;
+
+            string inner = json.Substring(open + 1, close - open - 1);
+            int i = 0;
+            while (i < inner.Length)
+            {
+                int q1 = inner.IndexOf('"', i);
+                if (q1 < 0) break;
+                StringBuilder item = new StringBuilder();
+                int j = q1 + 1;
+                while (j < inner.Length)
+                {
+                    char c = inner[j];
+                    if (c == '\\' && j + 1 < inner.Length)
+                    {
+                        item.Append(inner[j + 1]);
+                        j += 2;
+                    }
+                    else if (c == '"')
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        item.Append(c);
+                        j++;
+                    }
+                }
+                string val = item.ToString().Trim();
+                if (!string.IsNullOrEmpty(val)) set.Add(val);
+                i = j + 1;
+            }
+            return set;
         }
     }
 }

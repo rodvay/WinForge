@@ -1,33 +1,33 @@
 <p align="center">
-  <img src="assets/banner.png" alt="WinForge — Native, 100% Reversible Windows Setup, Tweaks, Updates & Repair Utility" width="100%" />
+  <img src="assets/banner.png" alt="WinForge v2.0 — Native, 100% Reversible Windows Setup, Debloat, Tweaks, DNS, Features & Repair Utility" width="100%" />
 </p>
 
 <h1 align="center">WinForge</h1>
 
 <p align="center">
-  <strong>A tiny (~180 KB), zero-dependency native Windows 10/11 utility inspired by Chris Titus WinUtil — featuring verified WinGet batch app installs, 21 live-inspected reversible tweaks with auto-backup, official Windows Update policies, built-in system repairs, and an optional Advanced (Expert) tab.</strong>
+  <strong>A tiny (~270 KB), zero-dependency, 100% reversible native Windows 10/11 utility with full Chris Titus WinUtil parity and beyond — featuring 60 verified WinGet apps, 40 live tweaks (Desktop/Laptop presets + JSON Export/Import), 28-app Bloatware & OneDrive Debloater, Windows Update & 1-click DNS Switcher, Windows Optional Features & Repairs, and an opt-in Advanced tab.</strong>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Windows 10 / 11" />
-  <img src="https://img.shields.io/badge/Size-180%20KB%20Single%20EXE-34D399?style=for-the-badge" alt="180 KB Single EXE" />
+  <img src="https://img.shields.io/badge/Size-270%20KB%20Single%20EXE-34D399?style=for-the-badge" alt="270 KB Single EXE" />
   <img src="https://img.shields.io/badge/UI%20Languages-EN%20%7C%20TR%20%7C%20%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87-38BDF8?style=for-the-badge" alt="English, Turkish and Simplified Chinese" />
   <img src="https://img.shields.io/badge/License-MIT-F59E0B?style=for-the-badge" alt="MIT License" />
   <a href="https://linux.do"><img src="https://img.shields.io/badge/Community-LINUX%20DO-1C1C1E?style=for-the-badge&logo=linux&logoColor=38BDF8" alt="LINUX DO Community" /></a>
 </p>
 
 <p align="center">
-  <b>English</b> &nbsp;·&nbsp; <a href="README.zh-CN.md"><b>简体中文</b></a> &nbsp;·&nbsp; <a href="#türkçe"><b>Türkçe</b></a> &nbsp;·&nbsp; <a href="https://github.com/rodvay/WinForge/releases/latest"><b>Download Latest Release</b></a>
+  <b>English</b> &nbsp;·&nbsp; <a href="README.zh-CN.md"><b>简体中文</b></a> &nbsp;·&nbsp; <a href="#türkçe"><b>Türkçe</b></a> &nbsp;·&nbsp; <a href="https://github.com/rodvay/WinForge/releases/latest"><b>Download Latest Release (v2.0.0)</b></a>
 </p>
 
 ---
 
-## Why WinForge?
+## Why WinForge v2.0?
 
-- **Native Compiled `.EXE` — No PowerShell ExecutionPolicy Errors:** Launches in <100ms with zero script download, zero PowerShell profile blocks, and zero runtime bloat.
-- **100% Live-Inspected & 100% Reversible Tweaks:** Reads real live registry/system values on launch, displays the exact target Registry key on every toggle, automatically saves a timestamped backup snapshot (`%APPDATA%\WinForge\backups\`) before every apply, and offers 1-click **Revert All Defaults**.
-- **Opt-In Advanced (Expert) Tab — Always Reversible:** Optional Windows Defender policy control (with live Tamper Protection detection — never bypasses security controls), Microsoft Edge browser remove/reinstall (WebView2 stays intact), Microsoft Store remove/reinstall (`wsreset -i`, WinGet stays intact), and Safe HKCU Registry Cleanup with mandatory `.reg` backup first. Never included in Recommended Preset and always asks confirmation.
-- **Smart OS Language Auto-Detection (`EN` / `TR` / `简体中文`):** Launches automatically in Turkish on Turkish Windows, Simplified Chinese on Chinese Windows, and English everywhere else — with a live **`TR | EN | 中文`** switcher in the top bar.
+- **Native Compiled Single `.EXE` (~270 KB):** Launches in <100ms with zero PowerShell ExecutionPolicy blocks, zero online script fetches, and zero external runtimes.
+- **Full 6-Module Coverage — 100% Reversible:** Covers every major workflow from Chris Titus Tech's WinUtil (`Apps`, `Tweaks`, `Debloat`, `Updates & DNS`, `Features & Repairs`, `Advanced`) with live system detection, automatic pre-apply backups (`%APPDATA%\WinForge\backups\`), and 1-click JSON Profile **Import / Export**.
+- **Desktop & Laptop Presets + Safe Services Manualization:** Laptop preset preserves Hibernation & battery sleep; `Services -> Manual` switches 16 safe idle services from Auto to Manual while saving every service's original `Start` value for 100% accurate restore.
+- **Smart OS Language Auto-Detection (`EN` / `TR` / `简体中文`):** Auto-launches in Turkish on Turkish Windows, Simplified Chinese on Chinese Windows, and English everywhere else — with a live **`TR | EN | 中文`** switcher in the top bar.
 
 ---
 
@@ -36,32 +36,32 @@
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="assets/screenshot-apps-en.png" alt="WinGet Apps Tab" width="100%" /><br />
-      <sub><b>Apps Tab</b> — 36 verified WinGet packages, live search, detect installed & 1-click Upgrade All</sub>
+      <img src="assets/screenshot-apps-en.png" alt="Apps Tab (60 Verified WinGet)" width="100%" /><br />
+      <sub><b>Apps Tab (60)</b> — 60 live-verified WinGet packages across 7 groups, live search, Detect Installed & Upgrade All</sub>
     </td>
     <td align="center" width="50%">
-      <img src="assets/screenshot-tweaks-en.png" alt="Reversible Tweaks Tab" width="100%" /><br />
-      <sub><b>Tweaks Tab</b> — 21 live-inspected reversible UI, Privacy & Performance tweaks</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="50%">
-      <img src="assets/screenshot-updates-en.png" alt="Windows Update Tab" width="100%" /><br />
-      <sub><b>Updates Tab</b> — Security-focused deferral (365d feature / 4d quality) & driver guard</sub>
-    </td>
-    <td align="center" width="50%">
-      <img src="assets/screenshot-repair-en.png" alt="Repair & Tools Tab" width="100%" /><br />
-      <sub><b>Repair & Tools Tab</b> — Restore Point, SFC, DISM, DNS/Winsock reset & 10 classic panels</sub>
+      <img src="assets/screenshot-tweaks-en.png" alt="Tweaks Tab (40 Reversible Tweaks)" width="100%" /><br />
+      <sub><b>Tweaks Tab (40)</b> — Desktop/Laptop presets, Services Manual, Ultimate Perf, JSON Import/Export</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="assets/screenshot-advanced-en.png" alt="Advanced Optional Tab (EN)" width="100%" /><br />
+      <img src="assets/screenshot-debloat-en.png" alt="Debloat Tab (28 Appx & OneDrive)" width="100%" /><br />
+      <sub><b>Debloat Tab</b> — 28 safe preinstalled Appx scanner & remover + OneDrive Remove/Reinstall</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="assets/screenshot-updates-en.png" alt="Updates & 1-Click DNS Tab" width="100%" /><br />
+      <sub><b>Updates & DNS Tab</b> — Security deferral (+365d/+4d), driver guard & 7-preset 1-Click DNS Switcher</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="assets/screenshot-repair-en.png" alt="Features & Fix Tab" width="100%" /><br />
+      <sub><b>Features & Fix Tab</b> — 8 official repairs (incl. Reset WU & Repair WinGet), 7 Windows Features & 15 classic panels</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="assets/screenshot-advanced-en.png" alt="Advanced Optional Tab" width="100%" /><br />
       <sub><b>Advanced Tab (Optional)</b> — Defender policy, Edge & Store remove/reinstall, auto `.reg` backup cleanup</sub>
-    </td>
-    <td align="center" width="50%">
-      <img src="assets/screenshot-advanced-zh.png" alt="Advanced Optional Tab (简体中文)" width="100%" /><br />
-      <sub><b>高级选项界面 (简体中文)</b> — 原生微软雅黑中文字体，每项操作均带二次确认与一键还原</sub>
     </td>
   </tr>
 </table>
@@ -69,55 +69,55 @@
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="assets/screenshot-tweaks-zh.png" alt="Simplified Chinese UI" width="100%" /><br />
-      <sub><b>简体中文系统优化界面</b> — Native Microsoft YaHei UI localization</sub>
+      <img src="assets/screenshot-debloat-zh.png" alt="Simplified Chinese Debloat UI" width="100%" /><br />
+      <sub><b>简体中文界面</b> — Native Microsoft YaHei UI localization across all 6 tabs</sub>
     </td>
     <td align="center" width="50%">
-      <img src="assets/screenshot-advanced-tr.png" alt="Turkish Advanced UI" width="100%" /><br />
-      <sub><b>Türkçe Gelişmiş (Opsiyonel) Sekmesi</b> — Otomatik dil algılama & anlık geçiş</sub>
+      <img src="assets/screenshot-tweaks-tr.png" alt="Turkish Tweaks UI" width="100%" /><br />
+      <sub><b>Türkçe Arayüz</b> — Masaüstü/Dizüstü profilleri & otomatik dil algılama</sub>
     </td>
   </tr>
 </table>
 
 ---
 
-## 5 Modules Overview
+## All 6 Modules
 
-### 1. Apps (`WinGet`)
-- **36 live-verified official WinGet package IDs** across 6 categories (*Browsers*, *Developer Tools*, *System Utilities*, *Media & Creative*, *Chat & Security*, *Gaming & Runtimes*).
-- Live search bar, **Detect Installed** scanner, silent batch installation with streaming console output + **Stop** cancellation, and 1-click **Upgrade All (`winget upgrade --all`)**.
+### 1. Apps (`WinGet` — 60 Live-Verified Packages)
+- 7 groups: *Browsers (7)*, *Developer Tools (16)*, *System Utilities (13)*, *Media & Creative (7)*, *Productivity & Docs (4)*, *Chat, Security & VPN (8)*, *Gaming & Runtimes (5)*.
+- Live search bar, **Detect Installed**, silent batch install with real-time console & **Stop**, 1-click **Upgrade All**, plus top-bar **Import / Export JSON** profile support.
 
-### 2. Tweaks (21 Reversible Tweaks)
-- **UI & File Explorer (10 HKCU tweaks — zero Admin needed):** Show file extensions, show hidden files, restore Windows 11 classic right-click context menu, Dark Mode, disable Start Menu Bing web search, open Explorer to "This PC", enable Taskbar right-click "End Task", align taskbar left, taskbar clock seconds, disable Start & lock screen promo tips.
-- **Privacy & Telemetry (6 tweaks):** Disable Advertising ID, disable tailored diagnostic tips, hide taskbar Copilot button, reduce telemetry to required minimum (`AllowTelemetry = 1`), disable Activity History, block auto-installed consumer promo apps.
-- **Performance & Power (5 tweaks):** Enable Game Mode, disable mouse acceleration (1:1 raw aim), Hardware-Accelerated GPU Scheduling (HAGS), High Performance power plan, disable hibernation (`hiberfil.sys`).
-- Includes **Recommended Preset**, **Revert All Defaults**, **Restart Explorer**, and automatic snapshot backup before applying.
+### 2. Tweaks (40 Live-Inspected, 100% Reversible Tweaks)
+- **Desktop Preset** & **Laptop Preset** (Laptop preserves Hibernation & battery sleep) + **Revert All Defaults** + **Restart Explorer**.
+- **UI & File Explorer (16 HKCU tweaks — zero Admin):** File extensions, hidden files, Win11 classic context menu, Dark Mode, disable Bing Start search, open Explorer to This PC, taskbar End Task, taskbar left align, taskbar seconds, disable Start/lock ads, disable Sticky Keys, NumLock on startup, always show scrollbars, hide Task View, hide Settings Home, Visual Effects Best Performance (keeps smooth ClearType fonts).
+- **Privacy, Telemetry & Policies (12 tweaks):** Advertising ID, tailored diagnostic tips, taskbar Copilot button, telemetry minimum (`AllowTelemetry=1`), Activity History, block consumer promo apps, disable Widgets/News, disable location tracking, disable Delivery Optimization (P2P updates), disable Copilot & AI Recall policy, non-destructive Microsoft Edge debloat policy, disable UWP background apps.
+- **Performance, Services & System (12 tweaks):** Game Mode, 1:1 mouse acceleration off, HAGS, High Performance power plan, Ultimate Performance power plan, disable Hibernation (Desktop), **Set 16 Safe Non-Essential Services to Manual** (with exact original `Start` backup & 100% restore), NTFS Long File Paths (>260 chars), Verbose Boot & Detailed BSoD, Prefer IPv4 (`0x20`), disable Teredo policy, UTC Hardware Clock (Linux dual-boot).
 
-### 3. Windows Update Policies
-- **Windows Default:** Removes all custom update policies and restores stock Microsoft behavior.
-- **Security-Focused (Recommended):** Keeps security patches active while deferring major feature upgrades by 365 days & quality updates by 4 days, plus prevents forced auto-restarts.
-- **Independent Toggles:** Exclude hardware drivers from Windows Update (`ExcludeWUDriversInQualityUpdate`) and prevent forced restarts while signed in.
+### 3. Debloat (28 Safe Preinstalled Appx + OneDrive)
+- Live scans which of the 28 preinstalled Microsoft bloatware apps (`Clipchamp`, `Feedback Hub`, `Get Help`, `Bing News/Weather/Search`, `New Outlook`, `Teams Home`, `Solitaire`, `Power Automate`, `Dev Home`, `Quick Assist`, `Xbox` overlays, etc.) are installed on your PC — **never** touches Store, WinGet, Calculator, Photos, Terminal, or Security.
+- Dedicated **Microsoft OneDrive** card: official `OneDriveSetup.exe /uninstall` + Explorer sidebar unpin, with 1-click **Reinstall OneDrive (`winget`)**.
 
-### 4. Repair & Tools
-- Official Microsoft repairs with live console streaming: **Create System Restore Point**, **`sfc /scannow`**, **`DISM /RestoreHealth`**, **DNS Flush & Winsock Reset**, and **Restart Windows Explorer**.
-- 10 one-click classic panel launchers (*Control Panel*, *Programs & Features*, *Network Adapters*, *Sound Devices*, *Power Options*, *System Properties*, *Device Manager*, *Services*, *Disk Management*, *Startup Apps*).
+### 4. Updates & DNS
+- **Windows Update Policies:** `Windows Default` vs `Security-Focused` (365-day feature / 4-day quality deferral), independent `Exclude Driver Updates` and `Prevent Forced Auto-Restart` toggles.
+- **1-Click DNS Switcher:** Live physical adapter & current DNS readout + 7 presets (`DHCP Default`, `Cloudflare 1.1.1.1`, `Cloudflare Malware 1.1.1.2`, `Google 8.8.8.8`, `Quad9 9.9.9.9`, `AdGuard Ad-Block 94.140.14.14`, `OpenDNS 208.67.222.222`) with automatic DNS flush.
 
-### 5. Advanced (Optional Expert Tools — Always Opt-In & Reversible)
-- **Windows Defender Real-Time Policy:** Live-checks both Real-Time Protection and **Tamper Protection**. Uses official Microsoft Group Policy & `Set-MpPreference` (never bypasses Tamper Protection; offers 1-click **Windows Security ↗** shortcut and 1-click **Restore Defender**).
-- **Microsoft Edge Browser:** Official `setup.exe` / WinGet removal & 1-click **Reinstall Edge (`winget`)**, leaving **Edge WebView2 Runtime** 100% untouched.
-- **Microsoft Store:** Official Appx removal & 1-click **Reinstall Store (`wsreset -i`)**, keeping **WinGet / App Installer** intact.
-- **Safe Registry Cleanup (HKCU, Auto `.reg` Backup):** Read-only scanner for dead local fixed-drive `.exe` references in `MuiCache`, `AppCompatFlags\Compatibility Assistant\Store`, `FeatureUsage\AppSwitched`, plus `RunMRU` / `TypedPaths` history. Never touches `HKCR\CLSID`, OS folders (`System32`/`SysWOW64`/`WindowsApps`), drivers, or unplugged USB drives. Automatically exports a standard double-click restorable UTF-16 LE `.reg` backup to `%APPDATA%\WinForge\backups\` before cleaning a single value.
+### 5. Features & Fix
+- **8 Official Repairs:** Create System Restore Point, `sfc /scannow`, `DISM /RestoreHealth`, **Reset Windows Update Components**, Flush DNS & Reset Network Stack, **Repair / Re-Register WinGet**, **Sync System Clock (NTP)**, Restart Windows Explorer.
+- **7 Windows Optional Features (1-Click Enable / Disable):** WSL, Hyper-V, Windows Sandbox, `.NET Framework 3.5`, NFS Client, OpenSSH Server, Legacy F8 Boot Recovery Menu.
+- **15 Classic Windows Control Panels:** Control Panel, Programs & Features, Network Adapters, Sound Devices, Power Options, System Properties, Device Manager, Windows Services, Disk Management, Startup Apps, Windows Firewall, Computer Management, Mouse Properties, Time & Date, System Restore UI.
+
+### 6. Advanced (Optional Expert Tools — Always Opt-In & Reversible)
+- **Windows Defender Real-Time Policy:** Live Tamper Protection detection (never bypasses security boundaries) + **Windows Security ↗** shortcut + 1-click **Restore Defender**.
+- **Microsoft Edge Browser:** Official remove & 1-click WinGet reinstall — leaves **Edge WebView2 Runtime** 100% intact.
+- **Microsoft Store:** Official Appx remove & 1-click **`wsreset -i`** reinstall — leaves **WinGet** intact.
+- **Safe Registry Cleanup (`HKCU`, Auto `.reg` Backup):** Read-only scanner for dead fixed-drive `.exe` references (`MuiCache`, `AppCompatFlags`, `FeatureUsage\AppSwitched`) & `RunMRU / TypedPaths` history; exports a double-click restorable UTF-16 LE `.reg` backup before cleaning a single value.
 
 ---
 
-## Download & Quick Start
+## Download & Building from Source
 
-1. Download **`WinForge.exe`** (~180 KB) from the **[Releases](https://github.com/rodvay/WinForge/releases/latest)** page.
-2. Double-click to run — launches immediately without forcing UAC. Click **Admin ↗** in the top bar only when you want to apply HKLM tweaks, Windows Update policies, SFC/DISM repairs, or Advanced system controls.
-
-## Building from Source
-
-Requires only Windows 10 or 11 (uses built-in `.NET Framework 4.x` `csc.exe`):
+1. Download **`WinForge.exe`** (~270 KB) from **[Releases](https://github.com/rodvay/WinForge/releases/latest)** and double-click to run.
+2. Or compile from source in 1 second on any Windows 10/11 PC (uses inbox `.NET Framework 4.x` `csc.exe`, zero SDK required):
 
 ```bat
 git clone https://github.com/rodvay/WinForge.git
@@ -131,16 +131,16 @@ build.bat
 
 ## Türkçe Özet
 
-**WinForge**, Chris Titus WinUtil konseptinde geliştirilmiş, ancak PowerShell script hataları yaşamadan tek dosya (`~180 KB`) olarak anında çalışan, **%100 geri alınabilir** açık kaynaklı Windows 10/11 yönetim ve optimizasyon aracıdır.
+**WinForge v2.0**, Chris Titus Tech WinUtil'in tüm işlevlerini tek dosya (`~270 KB`), sıfır bağımlılık, sıfır PowerShell hatası ve **%100 geri alınabilir** yerli `.EXE` mimarisiyle birleştiren açık kaynaklı Windows 10/11 yönetim paketidir:
 
-- **5 Ana Sekme:**
-  1. **Uygulamalar (`WinGet`):** Doğrulanmış 36 uygulama, canlı arama, kurulu tarama, toplu kurulum ve tek tıkla güncelleme.
-  2. **Ayarlar (21 Geri Alınabilir Ayar):** Canlı kayıt defteri okuma, otomatik yedekleme ve tek tıkla varsayılana dönme.
-  3. **Güncellemeler:** Resmi Grup İlkesi ile güvenlik odaklı güncelleme erteleme (+365g/+4g) ve sürücü koruması.
-  4. **Onarım:** Geri yükleme noktası, `SFC`, `DISM`, DNS/Winsock sıfırlama ve 10 klasik Denetim Masası kısayolu.
-  5. **Gelişmiş (İsteğe Bağlı Uzman Araçları):** Önerilen ayarlara dahil edilmeyen ve her işlemde onay soran isteğe bağlı modüller — **Windows Defender** politikası (Kurcalama Koruması canlı tespiti + tek tık geri açma), WebView2'yi koruyarak **Microsoft Edge** kaldırma/yeniden kurma, WinGet'i koruyarak **Microsoft Store** kaldırma/geri kurma (`wsreset -i`) ve temizlik öncesi otomatik `.reg` yedek alan **Güvenli HKCU Kayıt Defteri Temizliği**.
-- **Otomatik Dil Algılama:** Türkçe Windows'ta Türkçe, Çince Windows'ta Basitleştirilmiş Çince, diğer dillerde İngilizce başlar (`TR | EN | 中文`).
-- **İndirme:** **[Releases](https://github.com/rodvay/WinForge/releases/latest)** sayfasından `WinForge.exe` dosyasını indirip çalıştırabilirsiniz.
+- **6 Tam Modül:**
+  1. **Uygulamalar (`60 WinGet`):** Canlı doğrulamalı 60 uygulama, anlık arama, kurulu tarama, toplu kurulum ve tek tık güncelleme + üst barda **JSON İçe / Dışa Aktar**.
+  2. **Ayarlar (`40 Ayar`):** Masaüstü ve Dizüstü (pil/uyku korumalı) hazır profilleri, 16 güvenli Windows servisini yedekli "Manuel"e çekme, Nihai Performans, Edge sadeleştirme, Widgets/AI/P2P kapatma, uzun dosya yolu, UTC saat ve tek tık **Varsayılana Dön**.
+  3. **Bloatware (`Debloat`):** 28 önyüklü Microsoft Appx uygulamasını canlı tarayıp kaldırma + **Microsoft OneDrive** kaldırma / geri kurma.
+  4. **Güncelleme & DNS:** Resmi Grup İlkesi güncelleme erteleme (+365g/+4g), sürücü koruması + 7 hazır profilli **Tek Tık DNS Değiştirici** (`Cloudflare`, `Google`, `Quad9`, `AdGuard`, `OpenDNS`, `DHCP`).
+  5. **Özellikler & Onarım:** 8 resmi onarım (`SFC`, `DISM`, `Windows Update Sıfırla`, `WinGet Onar`, `NTP Saat`, `Ağ Sıfırla`, `Geri Yükleme Noktası`), 7 Windows Opsiyonel Özelliği (`WSL`, `Hyper-V`, `Sandbox`, `.NET 3.5`, `NFS`, `OpenSSH`, `F8 Menü`) ve 15 klasik Denetim Masası kısayolu.
+  6. **Gelişmiş (Opsiyonel):** Onay kutulu ve tek tık geri alınabilir Defender politikası, WebView2'yi koruyan Edge kaldırma/kurma, WinGet'i koruyan Store kaldırma/kurma ve otomatik `.reg` yedekli Güvenli Kayıt Defteri Temizliği.
+- **Otomatik 3 Dil (`TR | EN | 中文`):** Türkçe Windows'ta Türkçe, Çince Windows'ta Basitleştirilmiş Çince, diğer dillerde İngilizce başlar.
 
 > 简体中文完整文档请查看 **[README.zh-CN.md](README.zh-CN.md)**。
 

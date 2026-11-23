@@ -7,11 +7,11 @@ using System.Reflection;
 using System.Threading;
 using System.Windows.Forms;
 
-[assembly: AssemblyTitle("WinForge — Safe Windows Setup, Tweaks & Utility")]
-[assembly: AssemblyDescription("Lightweight, zero-dependency, 100% reversible Windows 10/11 utility for WinGet apps, privacy/UI tweaks, Windows Update policies, system repairs, and optional expert tools (EN/TR/zh-CN).")]
+[assembly: AssemblyTitle("WinForge — Complete Reversible Windows Utility")]
+[assembly: AssemblyDescription("Lightweight (~210 KB), zero-dependency, 100% reversible Windows 10/11 utility: 60 verified WinGet apps, 40 live tweaks (Desktop/Laptop presets + JSON config), Bloatware/OneDrive debloater, Windows Update & 1-click DNS, Optional Features & Repairs, and Optional Advanced tab (EN/TR/zh-CN).")]
 [assembly: AssemblyProduct("WinForge")]
-[assembly: AssemblyVersion("1.1.0.0")]
-[assembly: AssemblyFileVersion("1.1.0.0")]
+[assembly: AssemblyVersion("2.0.0.0")]
+[assembly: AssemblyFileVersion("2.0.0.0")]
 
 namespace WinForge
 {
@@ -37,7 +37,7 @@ namespace WinForge
                 else if (a == "--tab" && i + 1 < args.Length)
                 {
                     int t;
-                    if (int.TryParse(args[++i], out t) && t >= 0 && t <= 4) cfg.InitialTab = t;
+                    if (int.TryParse(args[++i], out t) && t >= 0 && t <= 5) cfg.InitialTab = t;
                 }
             }
             return cfg;
@@ -108,7 +108,12 @@ namespace WinForge
 
         public List<WingetAppItem> Apps = new List<WingetAppItem>();
         public List<TweakDefinition> Tweaks = new List<TweakDefinition>();
+        public List<BloatAppItem> BloatApps = new List<BloatAppItem>();
+        public bool OneDriveInstalled = false;
         public UpdatePolicyState UpdateState = new UpdatePolicyState();
+        public List<DnsPreset> DnsPresets = new List<DnsPreset>();
+        public LiveDnsStatus DnsStatus = new LiveDnsStatus();
+        public List<WinFeatureItem> WinFeatures = new List<WinFeatureItem>();
         public List<RepairActionItem> Repairs = new List<RepairActionItem>();
         public List<ControlPanelShortcut> Shortcuts = new List<ControlPanelShortcut>();
         public AdvancedStatus AdvStatus = new AdvancedStatus();
@@ -327,8 +332,9 @@ namespace WinForge
 
             if (_activeTab == 0) _contentHeight = PaintAppsTab(g, availW);
             else if (_activeTab == 1) _contentHeight = PaintTweaksTab(g, availW);
-            else if (_activeTab == 2) _contentHeight = PaintUpdatesTab(g, availW);
-            else if (_activeTab == 3) _contentHeight = PaintRepairTab(g, availW);
+            else if (_activeTab == 2) _contentHeight = PaintDebloatTab(g, availW);
+            else if (_activeTab == 3) _contentHeight = PaintUpdatesTab(g, availW);
+            else if (_activeTab == 4) _contentHeight = PaintRepairTab(g, availW);
             else _contentHeight = PaintAdvancedTab(g, availW);
 
             if (_scrollY > MaxScroll()) _scrollY = MaxScroll();
@@ -370,7 +376,7 @@ namespace WinForge
             AppGroup[] groups = new AppGroup[]
             {
                 AppGroup.Browsers, AppGroup.Developer, AppGroup.Utilities,
-                AppGroup.Media, AppGroup.Communication, AppGroup.GamingRuntimes
+                AppGroup.Media, AppGroup.Productivity, AppGroup.Communication, AppGroup.GamingRuntimes
             };
 
             foreach (AppGroup grp in groups)
@@ -450,20 +456,25 @@ namespace WinForge
         {
             float y = -_scrollY;
 
-            // Sub-toolbar inside Tweaks tab
+            // Sub-toolbar inside Tweaks tab (Desktop / Laptop presets + Revert + Restart Explorer + Apply)
             float tbH = Sf(30f);
             float bx = 0f;
-            RectangleF rPreset = new RectangleF(bx, y, Sf(156f), tbH);
-            DrawPillBtn(g, rPreset, T("Recommended Preset", "Önerilen Ayarlar", "一键推荐配置"), IsHovered("tweak_preset", null), false, !_isBusy);
-            if (!_isBusy) AddZone(rPreset, "tweak_preset", null);
-            bx = rPreset.Right + Sf(8f);
+            RectangleF rDesk = new RectangleF(bx, y, Sf(126f), tbH);
+            DrawPillBtn(g, rDesk, T("Desktop Preset", "Masaüstü Profili", "台式机推荐"), IsHovered("tweak_preset", null), false, !_isBusy);
+            if (!_isBusy) AddZone(rDesk, "tweak_preset", null);
+            bx = rDesk.Right + Sf(7f);
 
-            RectangleF rRevert = new RectangleF(bx, y, Sf(148f), tbH);
+            RectangleF rLap = new RectangleF(bx, y, Sf(118f), tbH);
+            DrawPillBtn(g, rLap, T("Laptop Preset", "Dizüstü Profili", "笔记本推荐"), IsHovered("tweak_preset_laptop", null), false, !_isBusy);
+            if (!_isBusy) AddZone(rLap, "tweak_preset_laptop", null);
+            bx = rLap.Right + Sf(7f);
+
+            RectangleF rRevert = new RectangleF(bx, y, Sf(134f), tbH);
             DrawPillBtn(g, rRevert, T("Revert All Defaults", "Varsayılana Dön", "全部恢复默认"), IsHovered("tweak_revert_all", null), false, !_isBusy);
             if (!_isBusy) AddZone(rRevert, "tweak_revert_all", null);
-            bx = rRevert.Right + Sf(8f);
+            bx = rRevert.Right + Sf(7f);
 
-            RectangleF rExp = new RectangleF(bx, y, Sf(134f), tbH);
+            RectangleF rExp = new RectangleF(bx, y, Sf(128f), tbH);
             DrawPillBtn(g, rExp, T("Restart Explorer", "Gezgini Yenile", "重启资源管理器"), IsHovered("restart_explorer", null), false, !_isBusy);
             if (!_isBusy) AddZone(rExp, "restart_explorer", null);
 
@@ -472,7 +483,7 @@ namespace WinForge
             foreach (TweakDefinition t in Tweaks)
                 if (t.DesiredState != t.IsCurrentlyApplied) pending++;
 
-            RectangleF rApply = new RectangleF(availW - Sf(178f), y, Sf(178f), tbH);
+            RectangleF rApply = new RectangleF(availW - Sf(172f), y, Sf(172f), tbH);
             string applyLbl = pending > 0
                 ? string.Format(T("Apply Changes ({0})", "Uygula ({0})", "应用更改 ({0})"), pending)
                 : T("No Pending Changes", "Değişiklik Yok", "暂无待应用更改");
@@ -485,9 +496,9 @@ namespace WinForge
             foreach (TweakCategory cat in cats)
             {
                 string secName;
-                if (cat == TweakCategory.UiExplorer) secName = T("UI & FILE EXPLORER (ZERO ADMIN NEEDED)", "ARAYÜZ VE DOSYA GEZGİNİ (YÖNETİCİ GEREKTİRMEZ)", "界面与资源管理器（无需管理员权限）");
-                else if (cat == TweakCategory.Privacy) secName = T("PRIVACY & TELEMETRY (100% REVERSIBLE)", "GİZLİLİK VE TELEMETRİ (%100 GERİ ALINABİLİR)", "隐私保护与遥测精简（100% 可还原）");
-                else secName = T("PERFORMANCE & POWER", "PERFORMANS VE GÜÇ", "性能与电源优化");
+                if (cat == TweakCategory.UiExplorer) secName = T("UI & FILE EXPLORER (16 · ZERO ADMIN NEEDED)", "ARAYÜZ VE DOSYA GEZGİNİ (16 · YÖNETİCİ GEREKTİRMEZ)", "界面与资源管理器（16 项 · 无需管理员权限）");
+                else if (cat == TweakCategory.Privacy) secName = T("PRIVACY, TELEMETRY & POLICIES (12 · 100% REVERSIBLE)", "GİZLİLİK, TELEMETRİ VE İLKELER (12 · %100 GERİ ALINABİLİR)", "隐私保护、遥测与策略精简（12 项 · 100% 可还原）");
+                else secName = T("PERFORMANCE, SERVICES & SYSTEM (12)", "PERFORMANS, SERVİSLER VE SİSTEM (12)", "性能、服务手动化与系统优化（12 项）");
 
                 if (y + Sf(24f) >= 0 && y <= ClientSize.Height)
                     DrawText(g, secName, _fSection, ColCyan, new RectangleF(Sf(2f), y + Sf(2f), availW, Sf(20f)), StringAlignment.Near);
@@ -543,7 +554,122 @@ namespace WinForge
             return (int)Math.Ceiling(y + _scrollY + Sf(8f));
         }
 
-        // ==================== TAB 2: WINDOWS UPDATE ====================
+        // ==================== TAB 2: DEBLOAT (APPX BLOATWARE & ONEDRIVE) ====================
+        private int PaintDebloatTab(Graphics g, float availW)
+        {
+            float y = -_scrollY;
+
+            // Toolbar
+            float tbH = Sf(30f);
+            float bx = 0f;
+            RectangleF rScan = new RectangleF(bx, y, Sf(134f), tbH);
+            DrawPillBtn(g, rScan, T("Scan Installed", "Kuruluları Tara", "扫描已安装"), IsHovered("bloat_scan", null), false, !_isBusy);
+            if (!_isBusy) AddZone(rScan, "bloat_scan", null);
+            bx = rScan.Right + Sf(8f);
+
+            RectangleF rSafe = new RectangleF(bx, y, Sf(152f), tbH);
+            DrawPillBtn(g, rSafe, T("Select Safe Bloat", "Güvenli Bloat Seç", "勾选常见预装"), IsHovered("bloat_select_safe", null), false, !_isBusy);
+            if (!_isBusy) AddZone(rSafe, "bloat_select_safe", null);
+            bx = rSafe.Right + Sf(8f);
+
+            int selCnt = 0;
+            foreach (BloatAppItem b in BloatApps) if (b.Selected) selCnt++;
+
+            RectangleF rClr = new RectangleF(bx, y, Sf(82f), tbH);
+            DrawPillBtn(g, rClr, T("Clear", "Temizle", "清空"), IsHovered("bloat_clear", null), false, !_isBusy && selCnt > 0);
+            if (!_isBusy && selCnt > 0) AddZone(rClr, "bloat_clear", null);
+
+            RectangleF rRem = new RectangleF(availW - Sf(186f), y, Sf(186f), tbH);
+            string remLbl = selCnt > 0
+                ? string.Format(T("Remove Selected ({0})", "Seçilenleri Kaldır ({0})", "卸载所选 ({0})"), selCnt)
+                : T("Select Apps to Remove", "Kaldırılacak Seçin", "请勾选要卸载的应用");
+            DrawDangerPillBtn(g, rRem, remLbl, IsHovered("bloat_remove", null), !_isBusy && selCnt > 0);
+            if (!_isBusy && selCnt > 0) AddZone(rRem, "bloat_remove", null);
+
+            y += tbH + Sf(12f);
+
+            // Dedicated Microsoft OneDrive Card
+            float odH = Sf(84f);
+            RectangleF od = new RectangleF(0, y, availW, odH);
+            if (od.Bottom >= -4 && od.Top <= ClientSize.Height + 4)
+            {
+                DrawBox(g, od, Sf(10f), ColCard, ColBorder);
+                float tx = od.X + Sf(16f);
+                float maxX = od.Right - Sf(16f);
+                string tOd = T("Microsoft OneDrive", "Microsoft OneDrive", "Microsoft OneDrive 网盘");
+                float wOd = Math.Min(MeasureTight(g, tOd, _fTitle).Width + Sf(4f), Sf(260f));
+                DrawTextTight(g, tOd, _fTitle, ColTextPrimary, new RectangleF(tx, od.Y + Sf(9f), wOd, Sf(19f)));
+                if (OneDriveInstalled)
+                    DrawTag(g, tx + wOd + Sf(8f), od.Y + Sf(10f), T("INSTALLED", "KURULU", "已安装"), ColCyanBg, ColCyanBd, ColCyan, maxX);
+                else
+                    DrawTag(g, tx + wOd + Sf(8f), od.Y + Sf(10f), T("REMOVED", "KALDIRILDI", "已卸载"), ColSafeBg, ColSafeBd, ColSafe, maxX);
+
+                DrawText(g, T("Cleanly uninstalls OneDrive via official OneDriveSetup.exe & unpins Explorer sidebar, or reinstalls anytime via WinGet.",
+                    "Resmi OneDriveSetup.exe ile OneDrive'ı temiz şekilde kaldırır veya istediğiniz zaman WinGet ile yeniden kurar.",
+                    "通过官方 OneDriveSetup.exe 干净卸载并取消资源管理器侧边栏固定，随时可通过 WinGet 一键重装。"),
+                    _fSub, ColTextSecondary, new RectangleF(tx, od.Y + Sf(31f), od.Width - Sf(32f), Sf(17f)), StringAlignment.Near);
+
+                float by = od.Bottom - Sf(33f);
+                RectangleF bOdRem = new RectangleF(tx, by, Sf(158f), Sf(25f));
+                DrawDangerPillBtn(g, bOdRem, T("Remove OneDrive", "OneDrive'ı Kaldır", "卸载 OneDrive"), IsHovered("onedrive_remove", null), !_isBusy && OneDriveInstalled);
+                if (!_isBusy && OneDriveInstalled) AddZone(bOdRem, "onedrive_remove", null);
+
+                RectangleF bOdInst = new RectangleF(bOdRem.Right + Sf(8f), by, Sf(196f), Sf(25f));
+                DrawPillBtn(g, bOdInst, T("Reinstall OneDrive (WinGet)", "OneDrive'ı Yeniden Kur", "重装 OneDrive (WinGet)"), IsHovered("onedrive_reinstall", null), !OneDriveInstalled, !_isBusy && WingetOk);
+                if (!_isBusy && WingetOk) AddZone(bOdInst, "onedrive_reinstall", null);
+            }
+            y += odH + Sf(14f);
+
+            DrawText(g, T("PREINSTALLED MICROSOFT BLOATWARE (28 SAFE APPX · STORE / WINGET / PHOTOS NEVER TOUCHED)",
+                "ÖNYÜKLÜ MICROSOFT BLOATWARE (28 GÜVENLİ APPX · MAĞAZA / WINGET / FOTOĞRAFLAR KORUNUR)",
+                "系统预装应用精简（28 项安全可选 · 绝不误删商店 / WinGet / 照片 / 计算器）"),
+                _fSection, ColCyan, new RectangleF(Sf(2f), y, availW, Sf(20f)), StringAlignment.Near);
+            y += Sf(26f);
+
+            int cols = availW >= Sf(540f) ? 2 : 1;
+            float gap = Sf(10f);
+            float cardW = (availW - gap * (cols - 1)) / cols;
+            float cardH = Sf(52f);
+
+            for (int i = 0; i < BloatApps.Count; i++)
+            {
+                int col = i % cols;
+                float x = col * (cardW + gap);
+                RectangleF cr = new RectangleF(x, y, cardW, cardH);
+
+                if (cr.Bottom >= -4 && cr.Top <= ClientSize.Height + 4)
+                {
+                    BloatAppItem item = BloatApps[i];
+                    bool hov = IsHovered("bloat_toggle", item);
+                    DrawBox(g, cr, Sf(9f), hov ? ColCardHover : ColCard, item.Selected ? ColDangerBd : (hov ? ColBorderHover : ColBorder));
+                    if (!_isBusy) AddZone(cr, "bloat_toggle", item);
+
+                    float cb = Sf(17f);
+                    DrawCheckbox(g, new RectangleF(cr.X + Sf(12f), cr.Y + (cr.Height - cb) * 0.5f, cb, cb), item.Selected, ColDanger);
+
+                    float tx = cr.X + Sf(38f);
+                    float maxW = cr.Width - Sf(50f);
+                    string name = item.GetName(_lang);
+                    float drawNW = Math.Min(MeasureTight(g, name, _fTitle).Width + Sf(4f), maxW - Sf(84f));
+                    DrawTextTight(g, name, _fTitle, item.IsInstalled ? ColTextPrimary : ColTextSecondary, new RectangleF(tx, cr.Y + Sf(7f), drawNW, Sf(19f)));
+
+                    if (item.IsInstalled)
+                        DrawTag(g, tx + drawNW + Sf(6f), cr.Y + Sf(8f), T("INSTALLED", "KURULU", "已安装"), ColAmberBg, ColAmberBd, ColAmber, cr.Right - Sf(10f));
+                    else
+                        DrawTag(g, tx + drawNW + Sf(6f), cr.Y + Sf(8f), T("ABSENT", "YOK", "未安装"), ColSafeBg, ColSafeBd, ColSafe, cr.Right - Sf(10f));
+
+                    DrawText(g, item.GetNote(_lang) + "  ·  " + item.PackageName, _fSub, ColTextSecondary,
+                        new RectangleF(tx, cr.Y + Sf(27f), maxW, Sf(17f)), StringAlignment.Near);
+                }
+
+                if (col == cols - 1 || i == BloatApps.Count - 1)
+                    y += cardH + Sf(8f);
+            }
+
+            return (int)Math.Ceiling(y + _scrollY + Sf(8f));
+        }
+
+        // ==================== TAB 3: WINDOWS UPDATE & 1-CLICK DNS ====================
         private int PaintUpdatesTab(Graphics g, float availW)
         {
             float y = -_scrollY;
@@ -633,6 +759,49 @@ namespace WinForge
                   "防止 Windows Update 在您挂机或工作期间未经允许自动重启电脑。"),
                 UpdateState.PreventAutoReboot);
 
+            y += Sf(14f);
+
+            // ==================== 1-CLICK DNS SWITCHER ====================
+            string adapTxt = !string.IsNullOrEmpty(DnsStatus.PrimaryAdapterName)
+                ? string.Format(T("1-CLICK DNS SWITCHER   ·   ACTIVE ADAPTER: {0}  ({1})",
+                                  "TEK TIK DNS DEĞİŞTİRİCİ   ·   AKTİF BAĞDAŞTIRICI: {0}  ({1})",
+                                  "一键 DNS 切换   ·   当前活动网卡: {0}  ({1})"),
+                                DnsStatus.PrimaryAdapterName, DnsStatus.CurrentDnsDisplay)
+                : T("1-CLICK DNS SWITCHER (ADMIN REQUIRED)", "TEK TIK DNS DEĞİŞTİRİCİ (YÖNETİCİ GEREKLİ)", "一键 DNS 切换（需管理员权限）");
+            DrawText(g, adapTxt, _fSection, ColCyan, new RectangleF(Sf(2f), y, availW, Sf(20f)), StringAlignment.Near);
+            y += Sf(26f);
+
+            int dCols = availW >= Sf(660f) ? 4 : 2;
+            float dGap = Sf(8f);
+            float dw = (availW - dGap * (dCols - 1)) / dCols;
+            float dh = Sf(62f);
+
+            for (int i = 0; i < DnsPresets.Count; i++)
+            {
+                int col = i % dCols;
+                float x = col * (dw + dGap);
+                RectangleF dr = new RectangleF(x, y, dw, dh);
+                if (dr.Bottom >= -4 && dr.Top <= ClientSize.Height + 4)
+                {
+                    DnsPreset p = DnsPresets[i];
+                    bool isAct = string.Equals(DnsStatus.ActivePresetId, p.Id, StringComparison.OrdinalIgnoreCase);
+                    bool canClick = _isAdmin && !_isBusy && DnsStatus.ActiveAdapters.Count > 0;
+                    bool hov = canClick && IsHovered("dns_apply", p);
+                    DrawBox(g, dr, Sf(9f), hov ? ColCardHover : ColCard, isAct ? ColSafeBd : (hov ? ColBorderHover : ColBorder));
+                    if (canClick) AddZone(dr, "dns_apply", p);
+
+                    DrawText(g, p.GetName(_lang), _fTitle, isAct ? ColSafe : ColTextPrimary,
+                        new RectangleF(dr.X + Sf(10f), dr.Y + Sf(7f), dr.Width - Sf(20f), Sf(18f)), StringAlignment.Near);
+                    string ipLine = p.IsDhcp ? T("Automatic (DHCP)", "Otomatik (DHCP)", "自动获取 (DHCP)") : (p.PrimaryV4 + " / " + p.SecondaryV4);
+                    DrawText(g, ipLine, _fSmall, isAct ? ColCyan : ColTextBody,
+                        new RectangleF(dr.X + Sf(10f), dr.Y + Sf(26f), dr.Width - Sf(20f), Sf(15f)), StringAlignment.Near);
+                    DrawText(g, p.GetTag(_lang), _fSmall, ColTextSecondary,
+                        new RectangleF(dr.X + Sf(10f), dr.Y + Sf(41f), dr.Width - Sf(20f), Sf(15f)), StringAlignment.Near);
+                }
+                if (col == dCols - 1 || i == DnsPresets.Count - 1)
+                    y += dh + Sf(8f);
+            }
+
             return (int)Math.Ceiling(y + _scrollY + Sf(12f));
         }
 
@@ -692,7 +861,38 @@ namespace WinForge
             }
 
             y += Sf(12f);
-            DrawText(g, T("CLASSIC WINDOWS CONTROL PANELS (1-CLICK LAUNCH)", "KLASİK WINDOWS YÖNETİM PANELLERİ (TEK TIK)", "经典 Windows 管理面板快捷入口"),
+            DrawText(g, T("WINDOWS OPTIONAL FEATURES (ENABLE / DISABLE VIA OFFICIAL DISM · ADMIN)",
+                "WINDOWS OPSİYONEL ÖZELLİKLERİ (RESMİ DISM İLE AÇ / KAPAT · YÖNETİCİ)",
+                "WINDOWS 可选系统功能（通过官方 DISM 启用或关闭 · 需管理员）"),
+                _fSection, ColCyan, new RectangleF(Sf(2f), y, availW, Sf(20f)), StringAlignment.Near);
+            y += Sf(26f);
+
+            foreach (WinFeatureItem feat in WinFeatures)
+            {
+                float fH = Sf(58f);
+                RectangleF fr = new RectangleF(0, y, availW, fH);
+                if (fr.Bottom >= -4 && fr.Top <= ClientSize.Height + 4)
+                {
+                    DrawBox(g, fr, Sf(9f), ColCard, ColBorder);
+                    float tx = fr.X + Sf(14f);
+                    float rightEdge = fr.Right - Sf(178f);
+                    DrawText(g, feat.GetName(_lang), _fTitle, ColTextPrimary, new RectangleF(tx, fr.Y + Sf(8f), rightEdge - tx, Sf(19f)), StringAlignment.Near);
+                    DrawText(g, feat.GetDesc(_lang) + "  ·  " + feat.FeatureHint, _fSub, ColTextSecondary, new RectangleF(tx, fr.Y + Sf(30f), rightEdge - tx, Sf(18f)), StringAlignment.Near);
+
+                    bool canRun = !_isBusy && _isAdmin;
+                    RectangleF bEn = new RectangleF(fr.Right - Sf(166f), fr.Y + (fr.Height - Sf(26f)) * 0.5f, Sf(76f), Sf(26f));
+                    DrawPillBtn(g, bEn, T("Enable", "Etkinleştir", "启用"), IsHovered("feat_enable", feat), false, canRun);
+                    if (canRun) AddZone(bEn, "feat_enable", feat);
+
+                    RectangleF bDis = new RectangleF(fr.Right - Sf(84f), fr.Y + (fr.Height - Sf(26f)) * 0.5f, Sf(72f), Sf(26f));
+                    DrawPillBtn(g, bDis, T("Disable", "Kapat", "关闭"), IsHovered("feat_disable", feat), false, canRun);
+                    if (canRun) AddZone(bDis, "feat_disable", feat);
+                }
+                y += fH + Sf(8f);
+            }
+
+            y += Sf(12f);
+            DrawText(g, T("CLASSIC WINDOWS CONTROL PANELS (15 · 1-CLICK LAUNCH)", "KLASİK WINDOWS YÖNETİM PANELLERİ (15 · TEK TIK)", "经典 Windows 管理面板快捷入口（15 项）"),
                 _fSection, ColCyan, new RectangleF(Sf(2f), y, availW, Sf(20f)), StringAlignment.Near);
             y += Sf(26f);
 
@@ -1071,8 +1271,8 @@ namespace WinForge
 
     internal sealed class MainForm : Form
     {
-        private const int LogicalW = 900;
-        private const int LogicalH = 668;
+        private const int LogicalW = 960;
+        private const int LogicalH = 700;
 
         private static readonly Color ColBg = Color.FromArgb(13, 17, 23);
         private static readonly Color ColCard = Color.FromArgb(22, 27, 34);
@@ -1170,7 +1370,7 @@ namespace WinForge
             UpdateWindowTitle();
             UpdateDpiScale(GetInitialDpi());
             ClientSize = new Size(S(LogicalW), S(LogicalH));
-            MinimumSize = new Size(S(780), S(560));
+            MinimumSize = new Size(S(840), S(580));
 
             if (!_cfg.DemoMode)
                 StartBackgroundChecks();
@@ -1194,6 +1394,9 @@ namespace WinForge
         {
             _content.Apps = WingetEngine.BuildVerifiedCatalog();
             _content.Tweaks = TweaksEngine.BuildCatalog();
+            _content.BloatApps = DebloatEngine.BuildCatalog();
+            _content.DnsPresets = DnsEngine.BuildPresets();
+            _content.WinFeatures = UpdatesAndRepairEngine.BuildWindowsFeatures();
             _content.Repairs = UpdatesAndRepairEngine.BuildRepairActions();
             _content.Shortcuts = UpdatesAndRepairEngine.BuildLegacyShortcuts();
 
@@ -1201,7 +1404,6 @@ namespace WinForge
             {
                 _content.WingetOk = true;
                 _content.WingetVersion = "v1.30";
-                // Mark a few realistic apps installed/selected for clean promo showcase
                 foreach (WingetAppItem a in _content.Apps)
                 {
                     if (a.Id == "Google.Chrome" || a.Id == "Microsoft.VisualStudioCode" || a.Id == "Git.Git" || a.Id == "7zip.7zip")
@@ -1211,11 +1413,19 @@ namespace WinForge
                 }
                 foreach (TweakDefinition tw in _content.Tweaks)
                 {
-                    bool on = tw.Id == "show_file_ext" || tw.Id == "dark_mode" || tw.Id == "classic_context_menu" || tw.Id == "disable_bing_search" || tw.Id == "enable_game_mode" || tw.Id == "disable_ad_id";
+                    bool on = tw.Id == "show_file_ext" || tw.Id == "dark_mode" || tw.Id == "classic_context_menu" || tw.Id == "disable_bing_search" || tw.Id == "enable_game_mode" || tw.Id == "disable_ad_id" || tw.Id == "services_manual";
                     tw.IsCurrentlyApplied = on;
                     tw.DesiredState = on;
                     if (tw.Id == "explorer_this_pc" || tw.Id == "taskbar_end_task")
                         tw.DesiredState = true;
+                }
+                _content.OneDriveInstalled = true;
+                foreach (BloatAppItem b in _content.BloatApps)
+                {
+                    if (b.PackageName == "Clipchamp.Clipchamp" || b.PackageName == "Microsoft.WindowsFeedbackHub" || b.PackageName == "Microsoft.BingNews" || b.PackageName == "MSTeams" || b.PackageName == "Microsoft.OutlookForWindows" || b.PackageName == "Microsoft.GetHelp")
+                        b.IsInstalled = true;
+                    if (b.PackageName == "Clipchamp.Clipchamp" || b.PackageName == "Microsoft.BingNews" || b.PackageName == "MSTeams")
+                        b.Selected = true;
                 }
                 _content.UpdateState = new UpdatePolicyState();
                 _content.UpdateState.IsSecurityDeferred = true;
@@ -1224,12 +1434,18 @@ namespace WinForge
                 _content.UpdateState.ExcludeDrivers = true;
                 _content.UpdateState.PreventAutoReboot = true;
 
+                _content.DnsStatus = new LiveDnsStatus();
+                _content.DnsStatus.ActiveAdapters.Add("Ethernet");
+                _content.DnsStatus.PrimaryAdapterName = "Ethernet";
+                _content.DnsStatus.CurrentDnsDisplay = "1.1.1.1, 1.0.0.1";
+                _content.DnsStatus.ActivePresetId = "cloudflare";
+
                 _content.AdvStatus = new AdvancedStatus();
                 _content.AdvStatus.DefenderRealTimeEnabled = true;
                 _content.AdvStatus.DefenderTamperProtected = true;
                 _content.AdvStatus.DefenderChecked = true;
                 _content.AdvStatus.EdgeInstalled = true;
-                _content.AdvStatus.EdgeVersion = "157.0";
+                _content.AdvStatus.EdgeVersion = "158.0";
                 _content.AdvStatus.StoreInstalled = true;
                 _content.AdvStatus.StoreChecked = true;
 
@@ -1243,19 +1459,21 @@ namespace WinForge
                     _content.RegScan.Entries.Add(new RegistryJunkEntry());
 
                 _statusText = T(
-                    "Ready · All tweaks are live-inspected and 100% reversible with automatic snapshot backups.",
-                    "Hazır · Tüm ayarlar canlı okunur ve otomatik yedekleme ile %100 geri alınabilir.",
-                    "就绪 · 所有优化项均实时读取系统状态，修改前自动备份且 100% 可还原。");
+                    "Ready · 60 verified apps · 40 reversible tweaks · Debloat · DNS · Features & Repairs · Optional Advanced tab.",
+                    "Hazır · 60 doğrulanmış uygulama · 40 geri alınabilir ayar · Bloatware · DNS · Özellik/Onarım · Gelişmiş sekmesi.",
+                    "就绪 · 60 款校验软件 · 40 项可还原优化 · 内置精简 · 一键 DNS · 系统功能与高级选项。");
             }
             else
             {
                 TweaksEngine.RefreshLiveStates(_content.Tweaks);
+                _content.OneDriveInstalled = DebloatEngine.IsOneDriveInstalled();
                 _content.UpdateState = UpdatesAndRepairEngine.ReadUpdatePolicy();
+                _content.DnsStatus = DnsEngine.ReadLiveDnsStatus(_content.DnsPresets);
                 _content.AdvStatus = AdvancedEngine.ReadFastStatus();
                 _statusText = T(
-                    "Ready · Click any tab to install apps, customize reversible tweaks, manage updates, or run repairs.",
-                    "Hazır · Uygulama kurmak, ayarları düzenlemek veya sistem onarmak için sekmeleri kullanın.",
-                    "就绪 · 切换上方标签即可批量装机、配置可还原优化、管理更新策略或修复系统。");
+                    "Ready · Select any tab to install apps, tweak Windows, debloat, switch DNS, enable features, or run repairs.",
+                    "Hazır · Uygulama kurmak, ayar yapmak, bloatware temizlemek, DNS veya özellik yönetmek için sekmeleri kullanın.",
+                    "就绪 · 切换上方标签即可批量装机、系统优化、精简预装、一键 DNS、管理功能或修复系统。");
             }
         }
 
@@ -1266,6 +1484,7 @@ namespace WinForge
                 string ver;
                 bool ok = WingetEngine.IsWingetAvailable(out ver);
                 AdvancedStatus adv = AdvancedEngine.ReadFullStatus();
+                DebloatEngine.ScanInstalledBloat(_content.BloatApps);
                 SafeInvoke(delegate
                 {
                     _content.WingetOk = ok;
@@ -1344,7 +1563,7 @@ namespace WinForge
         private void UpdateSearchPlaceholder()
         {
             if (_txtSearch != null && !_txtSearch.IsDisposed)
-                WinNative.SetCueBanner(_txtSearch.Handle, T("Search 36 apps...", "36 uygulama içinde ara...", "搜索 36 款软件..."));
+                WinNative.SetCueBanner(_txtSearch.Handle, T("Search 60 apps...", "60 uygulama içinde ara...", "搜索 60 款软件..."));
         }
 
         private void UpdateWindowTitle()
@@ -1456,12 +1675,132 @@ namespace WinForge
                     if (tw.InRecommendedPreset && (!tw.RequiresAdmin || _isAdmin))
                         tw.DesiredState = true;
                 }
-                _statusText = T("Recommended safe preset selected — review toggles and click 'Apply Changes' to execute.",
-                    "Önerilen güvenli ayarlar işaretlendi — kontrol edip 'Uygula' butonuna tıklayın.",
-                    "已勾选推荐安全优化项 — 请核对开关后点击「应用更改」生效。");
+                _statusText = T("Desktop Preset selected (includes Hibernation Off & Services Manual) — review and click 'Apply Changes'.",
+                    "Masaüstü Profili seçildi (Hazırda Beklet Kapalı & Servisler Manuel dahil) — kontrol edip 'Uygula' tıklayın.",
+                    "已选择「台式机推荐」配置（含关闭休眠与服务手动化）— 核对后点击「应用更改」。");
                 _statusIsSuccess = false;
                 _content.Invalidate();
                 Invalidate();
+            }
+            else if (key == "tweak_preset_laptop")
+            {
+                foreach (TweakDefinition tw in _content.Tweaks)
+                {
+                    if (tw.InLaptopPreset && (!tw.RequiresAdmin || _isAdmin))
+                        tw.DesiredState = true;
+                }
+                _statusText = T("Laptop Preset selected (preserves Hibernation & battery sleep) — review and click 'Apply Changes'.",
+                    "Dizüstü Profili seçildi (Hazırda Beklet ve pil tasarrufu korunur) — kontrol edip 'Uygula' tıklayın.",
+                    "已选择「笔记本推荐」配置（保留休眠与省电模式）— 核对后点击「应用更改」。");
+                _statusIsSuccess = false;
+                _content.Invalidate();
+                Invalidate();
+            }
+            else if (key == "bloat_toggle")
+            {
+                BloatAppItem item = payload as BloatAppItem;
+                if (item != null && !_isBusy) { item.Selected = !item.Selected; _content.Invalidate(); Invalidate(); }
+            }
+            else if (key == "bloat_scan")
+            {
+                if (_cfg.DemoMode || _isBusy) return;
+                RunAsyncTask(T("Scanning installed preinstalled Microsoft apps...", "Önyüklü Microsoft uygulamaları taranıyor...", "正在扫描本机预装的微软应用..."), false, delegate
+                {
+                    int n = DebloatEngine.ScanInstalledBloat(_content.BloatApps);
+                    bool od = DebloatEngine.IsOneDriveInstalled();
+                    AppendLog("[Debloat] Found " + n + " installed catalog Appx packages (OneDrive=" + od + ").");
+                    SafeInvoke(delegate { _content.OneDriveInstalled = od; });
+                }, T("Installed bloatware scan complete.", "Bloatware taraması tamamlandı.", "预装应用扫描完成。"));
+            }
+            else if (key == "bloat_select_safe")
+            {
+                int cnt = 0;
+                foreach (BloatAppItem b in _content.BloatApps)
+                {
+                    if (b.DefaultSafeBloat && b.IsInstalled) { b.Selected = true; cnt++; }
+                }
+                _statusText = cnt > 0
+                    ? string.Format(T("Selected {0} installed safe bloatware apps — click 'Remove Selected' to uninstall.", "Kurulu {0} güvenli bloatware seçildi — kaldırmak için 'Seçilenleri Kaldır' tıklayın.", "已勾选本机存在的 {0} 项常见预装应用 — 点击「卸载所选」即可清理。"), cnt)
+                    : T("No default bloatware apps detected as installed on this PC.", "Bu bilgisayarda kurulu varsayılan bloatware tespit edilmedi.", "当前系统未检测到常见的多余预装应用。");
+                _statusIsSuccess = false;
+                _content.Invalidate(); Invalidate();
+            }
+            else if (key == "bloat_clear")
+            {
+                foreach (BloatAppItem b in _content.BloatApps) b.Selected = false;
+                _content.Invalidate(); Invalidate();
+            }
+            else if (key == "bloat_remove")
+            {
+                if (_cfg.DemoMode || _isBusy) return;
+                List<BloatAppItem> sel = new List<BloatAppItem>();
+                foreach (BloatAppItem b in _content.BloatApps) if (b.Selected) sel.Add(b);
+                if (sel.Count == 0) return;
+
+                if (!ConfirmExpertAction(
+                    T("Remove Selected Built-In Apps?", "Seçilen Önyüklü Uygulamalar Kaldırılsın mı?", "确认卸载所选预装应用？"),
+                    string.Format(T("Remove {0} selected Microsoft Appx packages? You can reinstall any of them anytime from Microsoft Store.",
+                                    "Seçilen {0} Microsoft Appx uygulaması kaldırılacak. İstediğiniz zaman Microsoft Store'dan geri kurabilirsiniz.",
+                                    "将卸载所选的 {0} 款微软内置应用，随时可从微软商店重新安装。"), sel.Count)))
+                    return;
+
+                RunAsyncTask(T("Removing selected bloatware apps...", "Seçilen bloatware uygulamaları kaldırılıyor...", "正在卸载所选内置应用..."), true, delegate
+                {
+                    int rem, fail;
+                    DebloatEngine.RemoveSelectedBloat(sel, AppendLog, delegate { return _cancelFlag || IsDisposed; }, out rem, out fail);
+                    AppendLog("[Debloat] Finished: removed=" + rem + ", warnings=" + fail);
+                }, T("Selected bloatware removal completed.", "Seçilen bloatware kaldırma işlemi tamamlandı.", "所选内置应用卸载完成。"));
+            }
+            else if (key == "onedrive_remove")
+            {
+                if (_cfg.DemoMode || _isBusy) return;
+                if (!ConfirmExpertAction(
+                    T("Remove Microsoft OneDrive?", "Microsoft OneDrive Kaldırılsın mı?", "确认卸载 Microsoft OneDrive？"),
+                    T("Uninstalls OneDrive via official OneDriveSetup.exe (your cloud files on onedrive.com stay safe, and you can reinstall anytime via WinGet).",
+                      "Resmi OneDriveSetup.exe ile OneDrive kaldırılır (buluttaki dosyalarınız güvendedir ve istediğiniz zaman WinGet ile geri kurulur).",
+                      "将调用官方卸载程序移除 OneDrive（云端文件不受影响，随时可通过 WinGet 一键重装）。")))
+                    return;
+
+                RunAsyncTask(T("Removing Microsoft OneDrive...", "Microsoft OneDrive kaldırılıyor...", "正在卸载 Microsoft OneDrive..."), true, delegate
+                {
+                    DebloatEngine.RemoveOneDrive(AppendLog, delegate { return _cancelFlag || IsDisposed; });
+                    bool still = DebloatEngine.IsOneDriveInstalled();
+                    SafeInvoke(delegate { _content.OneDriveInstalled = still; });
+                }, T("Microsoft OneDrive removed cleanly.", "Microsoft OneDrive kaldırıldı.", "Microsoft OneDrive 已卸载。"));
+            }
+            else if (key == "onedrive_reinstall")
+            {
+                if (_cfg.DemoMode || _isBusy) return;
+                RunAsyncTask(T("Reinstalling Microsoft OneDrive via WinGet...", "Microsoft OneDrive WinGet ile yeniden kuruluyor...", "正在通过 WinGet 重装 OneDrive..."), true, delegate
+                {
+                    DebloatEngine.ReinstallOneDrive(AppendLog, delegate { return _cancelFlag || IsDisposed; });
+                    bool now = DebloatEngine.IsOneDriveInstalled();
+                    SafeInvoke(delegate { _content.OneDriveInstalled = now; });
+                }, T("Microsoft OneDrive reinstall completed.", "Microsoft OneDrive yeniden kuruldu.", "Microsoft OneDrive 重装完成。"));
+            }
+            else if (key == "dns_apply")
+            {
+                DnsPreset preset = payload as DnsPreset;
+                if (preset == null || _cfg.DemoMode || !_isAdmin || _isBusy) return;
+                List<string> adapters = new List<string>(_content.DnsStatus.ActiveAdapters);
+                RunAsyncTask(T("Applying DNS: ", "DNS uygulanıyor: ", "正在切换 DNS: ") + preset.GetName(Lang) + "...", false, delegate
+                {
+                    DnsEngine.ApplyDnsPreset(preset, adapters, AppendLog);
+                    LiveDnsStatus st = DnsEngine.ReadLiveDnsStatus(_content.DnsPresets);
+                    SafeInvoke(delegate { _content.DnsStatus = st; });
+                }, T("DNS updated & flushed: ", "DNS güncellendi ve önbellek temizlendi: ", "DNS 已切换并刷新缓存：") + preset.GetName(Lang));
+            }
+            else if (key == "feat_enable" || key == "feat_disable")
+            {
+                WinFeatureItem feat = payload as WinFeatureItem;
+                if (feat == null || _cfg.DemoMode || !_isAdmin || _isBusy) return;
+                bool en = (key == "feat_enable");
+                string actWord = en ? T("Enabling: ", "Etkinleştiriliyor: ", "正在启用: ") : T("Disabling: ", "Kapatılıyor: ", "正在关闭: ");
+                RunAsyncTask(actWord + feat.GetName(Lang) + "...", true, delegate
+                {
+                    if (en && feat.EnableAction != null) feat.EnableAction(AppendLog, delegate { return _cancelFlag || IsDisposed; });
+                    else if (!en && feat.DisableAction != null) feat.DisableAction(AppendLog, delegate { return _cancelFlag || IsDisposed; });
+                }, feat.GetName(Lang) + " — " + T("Completed (reboot may be required).", "Tamamlandı (yeniden başlatma gerekebilir).", "已完成（部分功能需重启生效）。"));
             }
             else if (key == "tweak_revert_all")
             {
@@ -1844,12 +2183,15 @@ namespace WinForge
             else if (key == "tab_2") SwitchTab(2);
             else if (key == "tab_3") SwitchTab(3);
             else if (key == "tab_4") SwitchTab(4);
+            else if (key == "tab_5") SwitchTab(5);
+            else if (key == "cfg_export") ExportConfigProfile();
+            else if (key == "cfg_import") ImportConfigProfile();
             else if (key == "elevate") { if (!_isAdmin && !_cfg.DemoMode && WinNative.RestartAsAdministrator("--tab " + _activeTab)) Close(); }
             else if (key == "toggle_console") { _consoleOpen = !_consoleOpen; LayoutAll(); Invalidate(); }
             else if (key == "cancel_task") { _cancelFlag = true; AppendLog("Cancelling current task..."); }
             else if (key == "quick_restore")
             {
-                SwitchTab(3);
+                SwitchTab(4);
                 if (!_cfg.DemoMode && _isAdmin && !_isBusy && _content.Repairs.Count > 0)
                     OnContentAction("repair_run", _content.Repairs[0]);
             }
@@ -1875,6 +2217,58 @@ namespace WinForge
             {
                 foreach (WingetAppItem a in _content.Apps) a.Selected = false;
                 _content.Invalidate(); Invalidate();
+            }
+        }
+
+        private void ExportConfigProfile()
+        {
+            if (_cfg.DemoMode || _isBusy) return;
+            using (SaveFileDialog dlg = new SaveFileDialog())
+            {
+                dlg.Title = T("Export WinForge Profile (JSON)", "WinForge Profilini Dışa Aktar (JSON)", "导出 WinForge 配置文件 (JSON)");
+                dlg.Filter = "WinForge Config (*.json)|*.json";
+                dlg.FileName = "winforge-profile.json";
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    try
+                    {
+                        WinForgeConfigIo.ExportProfileToFile(dlg.FileName, _content.Apps, _content.Tweaks);
+                        _statusText = T("Profile exported: ", "Profil dışa aktarıldı: ", "配置已导出至：") + dlg.FileName;
+                        _statusIsSuccess = true;
+                        AppendLog("[Config] Exported JSON profile -> " + dlg.FileName);
+                        Invalidate();
+                    }
+                    catch (Exception ex) { AppendLog("[Config] Export error: " + ex.Message); }
+                }
+            }
+        }
+
+        private void ImportConfigProfile()
+        {
+            if (_cfg.DemoMode || _isBusy) return;
+            using (OpenFileDialog dlg = new OpenFileDialog())
+            {
+                dlg.Title = T("Import WinForge Profile (JSON)", "WinForge Profilini İçe Aktar (JSON)", "导入 WinForge 配置文件 (JSON)");
+                dlg.Filter = "WinForge Config (*.json)|*.json|All Files (*.*)|*.*";
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    try
+                    {
+                        int aCnt, tCnt;
+                        if (WinForgeConfigIo.ImportProfileFromFile(dlg.FileName, _content.Apps, _content.Tweaks, _isAdmin, out aCnt, out tCnt))
+                        {
+                            _statusText = string.Format(
+                                T("Profile imported: {0} apps selected · {1} tweaks queued (click Apply to execute).",
+                                  "Profil içe aktarıldı: {0} uygulama seçildi · {1} ayar işaretlendi (Uygula ile onaylayın).",
+                                  "已导入配置：勾选 {0} 款软件 · 标记 {1} 项优化（核对后点击应用生效）。"),
+                                aCnt, tCnt);
+                            _statusIsSuccess = true;
+                            AppendLog("[Config] Imported JSON profile (" + aCnt + " apps, " + tCnt + " tweaks).");
+                            _content.Invalidate(); Invalidate();
+                        }
+                    }
+                    catch (Exception ex) { AppendLog("[Config] Import error: " + ex.Message); }
+                }
             }
         }
 
@@ -1941,7 +2335,7 @@ namespace WinForge
             _chromeZones.Add(new ClickZone(rEn, "lang_en", null));
             _chromeZones.Add(new ClickZone(rZh, "lang_zh", null));
 
-            RectangleF admRc = new RectangleF(langPill.X - Sf(88f), Sf(14f), Sf(80f), Sf(23f));
+            RectangleF admRc = new RectangleF(langPill.X - Sf(86f), Sf(14f), Sf(78f), Sf(23f));
             bool aHov = !_isAdmin && _hoverKey == "elevate";
             DrawBox(g, admRc, Sf(6f),
                 _isAdmin ? Color.FromArgb(18, 46, 36) : (aHov ? ColBtnHover : ColCard),
@@ -1949,6 +2343,19 @@ namespace WinForge
             DrawStr(g, _isAdmin ? T("Admin", "Yönetici", "管理员") : T("Admin ↗", "Yönetici ↗", "管理员 ↗"),
                 _fSmallPill, _isAdmin ? ColSafe : (aHov ? ColTextPrimary : ColTextSecondary), admRc, StringAlignment.Center);
             if (!_isAdmin) _chromeZones.Add(new ClickZone(admRc, "elevate", null));
+
+            // Compact JSON Profile Export / Import pills
+            RectangleF expRc = new RectangleF(admRc.X - Sf(76f), Sf(14f), Sf(68f), Sf(23f));
+            bool eHov = !_isBusy && _hoverKey == "cfg_export";
+            DrawBox(g, expRc, Sf(6f), eHov ? ColBtnHover : ColCard, eHov ? ColCyan : ColBorder);
+            DrawStr(g, T("Export", "Dışa Aktar", "导出"), _fSmallPill, eHov ? ColTextPrimary : ColTextSecondary, expRc, StringAlignment.Center);
+            if (!_isBusy) _chromeZones.Add(new ClickZone(expRc, "cfg_export", null));
+
+            RectangleF impRc = new RectangleF(expRc.X - Sf(74f), Sf(14f), Sf(66f), Sf(23f));
+            bool iHov = !_isBusy && _hoverKey == "cfg_import";
+            DrawBox(g, impRc, Sf(6f), iHov ? ColBtnHover : ColCard, iHov ? ColCyan : ColBorder);
+            DrawStr(g, T("Import", "İçe Aktar", "导入"), _fSmallPill, iHov ? ColTextPrimary : ColTextSecondary, impRc, StringAlignment.Center);
+            if (!_isBusy) _chromeZones.Add(new ClickZone(impRc, "cfg_import", null));
         }
 
         private void DrawTabStrip(Graphics g)
@@ -1958,27 +2365,30 @@ namespace WinForge
             float h = Sf(36f);
             float w = ClientSize.Width;
 
-            RectangleF track = new RectangleF(pad, y, Sf(688f), h);
+            float rpW = Sf(148f);
+            float trackW = Math.Min(Sf(756f), w - pad * 2f - rpW - Sf(12f));
+            RectangleF track = new RectangleF(pad, y, trackW, h);
             DrawBox(g, track, Sf(9f), Color.FromArgb(16, 21, 28), ColDivider);
 
             string[] labels = new string[]
             {
-                T("Apps (WinGet)", "Uygulamalar", "软件安装"),
-                T("Tweaks (21)", "Ayarlar (21)", "系统优化 (21)"),
-                T("Updates", "Güncellemeler", "系统更新"),
-                T("Repair & Tools", "Onarım", "修复与工具"),
+                T("Apps (60)", "Uygulamalar", "软件安装"),
+                T("Tweaks (40)", "Ayarlar (40)", "系统优化 (40)"),
+                T("Debloat", "Bloatware", "内置精简"),
+                T("Updates & DNS", "Güncelle/DNS", "更新与网络"),
+                T("Features & Fix", "Özellik/Onarım", "功能与修复"),
                 T("Advanced", "Gelişmiş", "高级选项")
             };
 
             float innerPad = Sf(3f);
-            float tabW = (track.Width - innerPad * 6f) / 5f;
-            for (int i = 0; i < 5; i++)
+            float tabW = (track.Width - innerPad * 7f) / 6f;
+            for (int i = 0; i < 6; i++)
             {
                 RectangleF tr = new RectangleF(track.X + innerPad + i * (tabW + innerPad), track.Y + innerPad, tabW, track.Height - innerPad * 2f);
                 string key = "tab_" + i;
                 bool active = (_activeTab == i);
                 bool hov = (_hoverKey == key);
-                bool isAdv = (i == 4);
+                bool isAdv = (i == 5);
                 if (active)
                 {
                     if (isAdv)
@@ -1999,7 +2409,7 @@ namespace WinForge
             }
 
             // Quick Restore Point button on far right
-            RectangleF rpRc = new RectangleF(w - pad - Sf(156f), y + Sf(3f), Sf(156f), Sf(30f));
+            RectangleF rpRc = new RectangleF(w - pad - rpW, y + Sf(3f), rpW, Sf(30f));
             if (rpRc.X > track.Right + Sf(10f))
             {
                 bool hov = _hoverKey == "quick_restore";

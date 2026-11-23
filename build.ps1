@@ -136,6 +136,7 @@ Write-Host "Compiling WinForge.exe..."
     "$scriptDir\Localization.cs" `
     "$scriptDir\TweaksEngine.cs" `
     "$scriptDir\WingetApps.cs" `
+    "$scriptDir\DebloatAndDnsEngine.cs" `
     "$scriptDir\UpdatesAndRepair.cs" `
     "$scriptDir\AdvancedEngine.cs" `
     "$scriptDir\Program.cs"
