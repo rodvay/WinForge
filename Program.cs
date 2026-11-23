@@ -10,8 +10,8 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("WinForge — Complete Reversible Windows Utility")]
 [assembly: AssemblyDescription("Lightweight (~210 KB), zero-dependency, 100% reversible Windows 10/11 utility: 60 verified WinGet apps, 40 live tweaks (Desktop/Laptop presets + JSON config), Bloatware/OneDrive debloater, Windows Update & 1-click DNS, Optional Features & Repairs, and Optional Advanced tab (EN/TR/zh-CN).")]
 [assembly: AssemblyProduct("WinForge")]
-[assembly: AssemblyVersion("2.0.2.0")]
-[assembly: AssemblyFileVersion("2.0.2.0")]
+[assembly: AssemblyVersion("2.0.3.0")]
+[assembly: AssemblyFileVersion("2.0.3.0")]
 
 namespace WinForge
 {
@@ -1319,6 +1319,7 @@ namespace WinForge
         private Font _fBtn;
         private Font _fStatus;
         private Font _fSearch;
+        private Font _fConsole;
 
         public MainForm(LaunchConfig cfg)
         {
@@ -1363,7 +1364,6 @@ namespace WinForge
             _txtConsole.BackColor = Color.FromArgb(10, 14, 19);
             _txtConsole.ForeColor = Color.FromArgb(176, 206, 194);
             _txtConsole.BorderStyle = BorderStyle.FixedSingle;
-            _txtConsole.Font = new Font("Consolas", 8.5f);
             _txtConsole.Visible = false;
             Controls.Add(_txtConsole);
 
@@ -1549,7 +1549,9 @@ namespace WinForge
             _fBtn = new Font(fam, PtToPx(8.3f), FontStyle.Bold, GraphicsUnit.Pixel);
             _fStatus = new Font(fam, PtToPx(8.4f), FontStyle.Regular, GraphicsUnit.Pixel);
             _fSearch = new Font(fam, PtToPx(8.8f), FontStyle.Regular, GraphicsUnit.Pixel);
+            _fConsole = new Font("Consolas", PtToPx(8.5f), FontStyle.Regular, GraphicsUnit.Pixel);
             _txtSearch.Font = _fSearch;
+            _txtConsole.Font = _fConsole;
         }
 
         private void DisposeFonts()
@@ -1561,6 +1563,7 @@ namespace WinForge
             if (_fBtn != null) { _fBtn.Dispose(); _fBtn = null; }
             if (_fStatus != null) { _fStatus.Dispose(); _fStatus = null; }
             if (_fSearch != null) { _fSearch.Dispose(); _fSearch = null; }
+            if (_fConsole != null) { _fConsole.Dispose(); _fConsole = null; }
         }
 
         private void UpdateSearchPlaceholder()
@@ -1612,7 +1615,15 @@ namespace WinForge
 
         private void SafeInvoke(MethodInvoker m)
         {
-            try { if (!IsDisposed && IsHandleCreated) BeginInvoke(m); } catch { }
+            try
+            {
+                if (!IsDisposed && !Disposing && IsHandleCreated)
+                    BeginInvoke((MethodInvoker)delegate
+                    {
+                        if (!IsDisposed && !Disposing) m();
+                    });
+            }
+            catch { }
         }
 
         private void SetLanguage(string lang)
@@ -2147,13 +2158,29 @@ namespace WinForge
             _progressRatio = 0.25f;
             ThreadPool.QueueUserWorkItem(delegate
             {
-                try { work(); } catch (Exception ex) { AppendLog("[ERROR] " + ex.Message); }
+                bool hadError = false;
+                try { work(); }
+                catch (Exception ex) { hadError = true; AppendLog("[ERROR] " + ex.Message); }
+                bool wasCancelled = _cancelFlag;
                 SafeInvoke(delegate
                 {
                     _isBusy = false; _progressRatio = 1f;
                     _content.Configure(_scale, Lang, _activeTab, _isAdmin, false);
-                    _statusText = doneMsg;
-                    _statusIsSuccess = true;
+                    if (wasCancelled)
+                    {
+                        _statusText = T("Task cancelled by user.", "İşlem kullanıcı tarafından durduruldu.", "任务已由用户取消。");
+                        _statusIsSuccess = false;
+                    }
+                    else if (hadError)
+                    {
+                        _statusText = T("Task finished with errors — check Console for details.", "İşlem hata ile tamamlandı — ayrıntılar için Konsola bakın.", "任务执行出现错误，请查看控制台日志。");
+                        _statusIsSuccess = false;
+                    }
+                    else
+                    {
+                        _statusText = doneMsg;
+                        _statusIsSuccess = true;
+                    }
                     Invalidate();
                 });
             });

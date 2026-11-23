@@ -1153,7 +1153,7 @@ namespace WinForge
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("{");
-            sb.AppendLine("  \"winforge_version\": \"2.0.2\",");
+            sb.AppendLine("  \"winforge_version\": \"2.0.3\",");
             sb.AppendLine("  \"exported_at\": \"" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\",");
 
             sb.Append("  \"apps\": [");
